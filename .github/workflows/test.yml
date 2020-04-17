@@ -34,3 +34,10 @@ jobs:
             tags:
               - "project:${{ github.repository }}"
               - "branch:${{ github.head_ref }}"
+        events: |
+          - title: "Test run succesfully"
+            text: "Branch ${{ github.head_ref }} successfully built"
+            alert_type: "info"
+            host: ${{ github.repository_owner }}
+            tags:
+              - "project:${{ github.repository }}"
