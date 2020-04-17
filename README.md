@@ -6,14 +6,16 @@ This Action lets you send events and metrics to Datadog from a GitHub workflow.
 
 ## Usage
 
-To send one metric configure a job step like this:
+Please note how `metrics` is defined as a string containing YAML code - this
+allows to send more than one metric at once if needed. To send one metric,
+configure a job step like the following:
 
 ```yaml
 - name: Build count
   uses: masci/datadog@v1
   with:
     api-key: ${{ secrets.DATADOG_API_KEY }}
-    metrics:
+    metrics: |
       - type: "count"
         name: "test.runs.count"
         value: 1.0
@@ -23,7 +25,9 @@ To send one metric configure a job step like this:
           - "branch:${{ github.head_ref }}"
 ```
 
-You can also send events, an use case might be a failed job:
+You can also send Datadog events from workflows, same as `metric` please note
+how `events` is indeed a string containing YAML code. Fore example, an use case
+might be sending an event when a job has failed:
 
 ```yaml
 steps:
@@ -36,7 +40,7 @@ steps:
     uses: masci/datadog@v1
     with:
       api-key: ${{ secrets.DATADOG_API_KEY }}
-      events:
+      events: |
         - title: "Failed building Foo"
           text: "Branch ${{ github.head_ref }} failed to build"
           alert_type: "error"

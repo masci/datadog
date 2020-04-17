@@ -27,7 +27,7 @@ jobs:
       uses: ./
       with:
         api-key: ${{ secrets.DATADOG_API_KEY }}
-        metrics:
+        metrics: |
           - type: "count"
             name: "test.runs.count"
             value: 1.0
