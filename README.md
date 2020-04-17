@@ -35,7 +35,7 @@ steps:
     uses: actions/checkout@v2
   - name: build
     run: this-will-fail
-  - name: Datdog
+  - name: Datadog
     if: failure()
     uses: masci/datadog@v1
     with:
