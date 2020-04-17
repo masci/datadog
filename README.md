@@ -26,7 +26,7 @@ configure a job step like the following:
 ```
 
 You can also send Datadog events from workflows, same as `metric` please note
-how `events` is indeed a string containing YAML code. Fore example, an use case
+how `events` is indeed a string containing YAML code. For example, an use case
 might be sending an event when a job has failed:
 
 ```yaml
