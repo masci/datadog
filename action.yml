@@ -1,10 +1,16 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Datadog Action'
+description: 'Push Datadog metrics and events from GitHub Actions'
+author: 'Massimiliano Pippi'
 inputs:
-  myInput:              # change this
-    description: 'input description here'
-    default: 'default value if applicable'
+  api-key:
+    description: 'A valid Datadog API Key'
+    required: true
+  metrics:
+    description: 'A list of metrics objects to send, see docs for details'
+    default: '[]'
+  events:
+    description: 'A list of event objects to send, see docs for details'
+    default: '[]'
 runs:
   using: 'node12'
   main: 'dist/index.js'

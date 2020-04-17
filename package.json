@@ -1,8 +1,8 @@
 {
-  "name": "typescript-action",
-  "version": "0.0.0",
-  "private": true,
-  "description": "TypeScript template action",
+  "name": "datadog-action",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Datadog action",
   "main": "lib/main.js",
   "scripts": {
     "build": "tsc",
@@ -25,7 +25,8 @@
   "author": "YourNameOrOrganization",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.2.0"
+    "@actions/core": "^1.2.0",
+    "@actions/http-client": "^1.0.7"
   },
   "devDependencies": {
     "@types/jest": "^24.0.23",

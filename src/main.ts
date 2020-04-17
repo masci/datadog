@@ -1,18 +1,17 @@
 import * as core from '@actions/core'
-import {wait} from './wait'
+import * as dd from './datadog'
 
 async function run(): Promise<void> {
   try {
-    const ms: string = core.getInput('milliseconds')
-    core.debug(`Waiting ${ms} milliseconds ...`)
+    const apiKey: string = core.getInput('api-key')
 
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
+    const metrics: dd.Metric[] = JSON.parse(core.getInput('metrics'))
+    await dd.sendMetrics(apiKey, metrics)
 
-    core.setOutput('time', new Date().toTimeString())
+    const events: dd.Event[] = JSON.parse(core.getInput('events'))
+    await dd.sendEvents(apiKey, events)
   } catch (error) {
-    core.setFailed(error.message)
+    core.setFailed(`Run failed: ${error.message}`)
   }
 }
 

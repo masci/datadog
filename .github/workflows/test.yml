@@ -4,20 +4,33 @@ on: # rebuild any PRs and main branch changes
   push:
     branches:
       - master
-      - 'releases/*'
 
 jobs:
-  build: # make sure build/ci work properly
+  # make sure build/ci work properly
+  build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - run: |
-        npm install
-        npm run all
-  test: # make sure the action works on a clean machine without building
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: build and test
+        run: |
+          npm install
+          npm run all
+
+  # make sure the action works on a clean machine without building
+  test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - uses: ./
-      with: 
-        milliseconds: 1000
+    - name: checkout
+      uses: actions/checkout@v2
+    - name: Datadog
+      uses: ./
+      with:
+        api-key: ${{ secrets.DATADOG_API_KEY }}
+        metrics:
+          - type: "count"
+            name: "test.runs.count"
+            value: 1.0
+            tags:
+              - "project:${{ github.repository }}"
+              - "branch:${{ github.head_ref }}"
