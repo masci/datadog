@@ -8,7 +8,7 @@ This Action lets you send events and metrics to Datadog from a GitHub workflow.
 
 To send one metric configure a job step like this:
 
-```
+```yaml
 - name: Build count
   uses: masci/datadog@v1
   with:
@@ -24,7 +24,8 @@ To send one metric configure a job step like this:
 ```
 
 You can also send events, an use case might be a failed job:
-```
+
+```yaml
 steps:
   - name: checkout
     uses: actions/checkout@v2
