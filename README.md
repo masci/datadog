@@ -6,6 +6,9 @@ This Action lets you send events and metrics to Datadog from a GitHub workflow.
 
 ## Usage
 
+The action can send metrics and events to any Datadog site by setting the `api-url` param. When
+omitted, it defaults to the US endpoint: `https://api.datadoghq.com`.
+
 Please note how `metrics` is defined as a string containing YAML code - this
 allows to send more than one metric at once if needed. To send one metric,
 configure a job step like the following:
@@ -56,19 +59,29 @@ Install the dependencies
 $ npm install
 ```
 
-Build the typescript and package it for distribution
+Lint, test and build the typescript and package it for distribution
 ```bash
-$ npm run build && npm run pack
+$ npm run all
 ```
 
 Run the tests :heavy_check_mark:
 ```bash
 $ npm test
 
- PASS  ./index.test.js
-  ✓ throws invalid number (3ms)
-  ✓ wait 500 ms (504ms)
-  ✓ test runs (95ms)
+> datadog-action@1.0.0 test /datadog
+> jest
 
+ PASS  __tests__/main.test.ts
+  unit-tests
+    ✓ api-key input param must be set (3 ms)
+    ✓ default api endpoint URL (1 ms)
+    ✓ custom api endpoint URL
+    ✓ run calls the sending functions (1 ms)
+  end-to-end tests
+    ✓ actually sends data to the backend when DD_API_KEY env var is set
 ...
+Ran all test suites.
 ```
+
+When the DD_API_KEY env var is set with a valid API Key, the tests will
+also perform an actual call sending some metrics and events.
