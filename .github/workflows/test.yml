@@ -10,12 +10,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout
-        uses: actions/checkout@v2
-      - name: build and test
-        run: |
-          npm install
-          npm run all
+    - name: checkout
+      uses: actions/checkout@v2
+    - name: build and test
+      run: |
+        npm install
+        npm run all
 
   # make sure the action works on a clean machine without building
   test:
