@@ -63,13 +63,13 @@ export async function sendEvents(
   apiKey: string,
   events: Event[]
 ): Promise<void> {
-  core.debug(`About to send ${events.length} events`)
   const http: httpm.HttpClient = getClient(apiKey)
-
   let errors = 0
+
+  core.debug(`About to send ${events.length} events`)
   for (const ev of events) {
     const res: httpm.HttpClientResponse = await http.post(
-      `${apiURL}/api/v1/series`,
+      `${apiURL}/api/v1/events`,
       JSON.stringify(ev)
     )
     if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
