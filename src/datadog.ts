@@ -32,7 +32,7 @@ export async function sendMetrics(
   metrics: Metric[]
 ): Promise<void> {
   const http: httpm.HttpClient = getClient(apiKey)
-  const s = { series: Array() }
+  const s = {series: Array()}
   const now = Date.now() / 1000 // timestamp must be in seconds
 
   // build series payload containing our metrics
