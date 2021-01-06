@@ -17,7 +17,7 @@ export interface Event {
   host: string
 }
 
-function getClient(apiKey: string): httpm.HttpClient {
+export function getClient(apiKey: string): httpm.HttpClient {
   return new httpm.HttpClient('dd-http-client', [], {
     headers: {
       'DD-API-KEY': apiKey,
@@ -27,18 +27,15 @@ function getClient(apiKey: string): httpm.HttpClient {
 }
 
 export async function sendMetrics(
+  apiURL: string,
   apiKey: string,
   metrics: Metric[]
 ): Promise<void> {
-  core.debug(`About to send ${metrics.length} metrics`)
   const http: httpm.HttpClient = getClient(apiKey)
-  const s = {
-    series: Array()
-  }
+  const s = { series: Array() }
+  const now = Date.now() / 1000 // timestamp must be in seconds
 
-  // timestamp must be in seconds
-  const now = Date.now() / 1000
-
+  // build series payload containing our metrics
   for (const m of metrics) {
     s.series.push({
       metric: m.name,
@@ -49,8 +46,10 @@ export async function sendMetrics(
     })
   }
 
+  // POST data
+  core.debug(`About to send ${metrics.length} metrics`)
   const res: httpm.HttpClientResponse = await http.post(
-    'https://api.datadoghq.com/api/v1/series',
+    `${apiURL}/api/v1/series`,
     JSON.stringify(s)
   )
 
@@ -60,6 +59,7 @@ export async function sendMetrics(
 }
 
 export async function sendEvents(
+  apiURL: string,
   apiKey: string,
   events: Event[]
 ): Promise<void> {
@@ -69,7 +69,7 @@ export async function sendEvents(
   let errors = 0
   for (const ev of events) {
     const res: httpm.HttpClientResponse = await http.post(
-      'https://api.datadoghq.com/api/v1/events',
+      `${apiURL}/api/v1/series`,
       JSON.stringify(ev)
     )
     if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
