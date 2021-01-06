@@ -5,6 +5,9 @@ inputs:
   api-key:
     description: 'A valid Datadog API Key'
     required: true
+  api-url:
+    description: 'The URL of the API endpoint, defaults to US datacenter'
+    default: 'https://api.datadoghq.com'
   metrics:
     description: 'A list of metrics objects to send, see docs for details'
     default: '[]'
