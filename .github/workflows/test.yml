@@ -19,7 +19,7 @@ jobs:
 
   # make sure the action works on a clean machine without building
   e2e:
-    if: ${{ secrets.DATADOG_API_KEY != '' }}
+    if: github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     steps:
     - name: checkout
