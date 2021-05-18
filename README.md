@@ -52,6 +52,30 @@ steps:
             - "project:${{ github.repository }}"
 ```
 
+You can also send Datadog service checks from workflows, same as others please note
+how `service-checks` is indeed a string containing YAML code. For example, an use case
+might be sending when a job has failed:
+
+```yaml
+steps:
+  - name: checkout
+    uses: actions/checkout@v2
+  - name: build
+    run: this-will-fail
+  - name: Datadog
+    if: failure()
+    uses: masci/datadog@v1
+    with:
+      api-key: ${{ secrets.DATADOG_API_KEY }}
+      service-checks: |
+        - check: "app.ok"
+          message: "Branch ${{ github.head_ref }} failed to build"
+          status: 0
+          host_name: ${{ github.repository_owner }}
+          tags:
+            - "project:${{ github.repository }}"
+```
+
 ## Development
 
 Install the dependencies
@@ -84,4 +108,4 @@ Ran all test suites.
 ```
 
 When the DD_API_KEY env var is set with a valid API Key, the tests will
-also perform an actual call sending some metrics and events.
+also perform an actual call sending some metrics, events and service checks.

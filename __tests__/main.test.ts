@@ -26,6 +26,7 @@ describe('unit-tests', () => {
     await run()
     expect(dd.sendMetrics).toHaveBeenCalledTimes(0)
     expect(dd.sendEvents).toHaveBeenCalledTimes(0)
+    expect(dd.sendServiceChecks).toHaveBeenCalledTimes(0)
     expect(outSpy).toHaveBeenCalledWith(
       '::error::Run failed: Input required and not supplied: api-key\n'
     )
@@ -63,6 +64,11 @@ describe('unit-tests', () => {
       'fooBarBaz',
       []
     )
+    expect(dd.sendServiceChecks).toHaveBeenCalledWith(
+      'https://api.datadoghq.com',
+      'fooBarBaz',
+      []
+    )
   })
 })
 
@@ -88,6 +94,15 @@ describe('end-to-end tests', () => {
         text: 'Version 1.0.0 is available on Docker Hub',
         alert_type: 'info',
         host: 'example.com'
+      }
+    ])
+    process.env['INPUT_SERVICE-CHECKS'] = yaml.safeDump([
+      {
+        check: 'app.ok',
+        message: 'Build has failed',
+        status: 0,
+        host_name: 'example.com',
+        tags: ['foo:bar']
       }
     ])
 
