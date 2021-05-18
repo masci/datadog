@@ -7,7 +7,7 @@ on: # rebuild any PRs and main branch changes
 
 jobs:
   # make sure build/ci work properly
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
     - name: checkout
@@ -18,7 +18,8 @@ jobs:
         npm run all
 
   # make sure the action works on a clean machine without building
-  test:
+  e2e:
+    if: ${{ secrets.DATADOG_API_KEY }} != ''
     runs-on: ubuntu-latest
     steps:
     - name: checkout
