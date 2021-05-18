@@ -15,7 +15,7 @@ inputs:
     description: 'A list of event objects to send, see docs for details'
     default: '[]'
   service-checks:
-    description: 'A list of serive check objects to send, see docs for details'
+    description: 'A list of service check objects to send, see docs for details'
     default: '[]'
 runs:
   using: 'node12'
