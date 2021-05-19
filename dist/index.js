@@ -942,7 +942,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendEvents = exports.sendMetrics = exports.getClient = void 0;
+exports.sendServiceChecks = exports.sendEvents = exports.sendMetrics = exports.getClient = void 0;
 const core = __importStar(__webpack_require__(470));
 const httpm = __importStar(__webpack_require__(539));
 function getClient(apiKey) {
@@ -996,6 +996,24 @@ function sendEvents(apiURL, apiKey, events) {
     });
 }
 exports.sendEvents = sendEvents;
+function sendServiceChecks(apiURL, apiKey, serviceCecks) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const http = getClient(apiKey);
+        let errors = 0;
+        core.debug(`About to send ${serviceCecks.length} service checks`);
+        for (const sc of serviceCecks) {
+            const res = yield http.post(`${apiURL}/api/v1/check_run`, JSON.stringify(sc));
+            if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
+                errors++;
+                core.error(`HTTP request failed: ${res.message.statusMessage}`);
+            }
+        }
+        if (errors > 0) {
+            throw new Error(`Failed sending ${errors} out of ${serviceCecks.length} events`);
+        }
+    });
+}
+exports.sendServiceChecks = sendServiceChecks;
 
 
 /***/ }),
@@ -5309,6 +5327,8 @@ function run() {
             yield dd.sendMetrics(apiURL, apiKey, metrics);
             const events = yaml.safeLoad(core.getInput('events')) || [];
             yield dd.sendEvents(apiURL, apiKey, events);
+            const serviceChecks = yaml.safeLoad(core.getInput('service-checks')) || [];
+            yield dd.sendServiceChecks(apiURL, apiKey, serviceChecks);
         }
         catch (error) {
             core.setFailed(`Run failed: ${error.message}`);

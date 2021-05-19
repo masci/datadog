@@ -17,6 +17,14 @@ export interface Event {
   host: string
 }
 
+export interface ServiceCheck {
+  check: string
+  status: number
+  message: string
+  tags: string[]
+  host_name: string
+}
+
 export function getClient(apiKey: string): httpm.HttpClient {
   return new httpm.HttpClient('dd-http-client', [], {
     headers: {
@@ -80,5 +88,32 @@ export async function sendEvents(
 
   if (errors > 0) {
     throw new Error(`Failed sending ${errors} out of ${events.length} events`)
+  }
+}
+
+export async function sendServiceChecks(
+  apiURL: string,
+  apiKey: string,
+  serviceCecks: ServiceCheck[]
+): Promise<void> {
+  const http: httpm.HttpClient = getClient(apiKey)
+  let errors = 0
+
+  core.debug(`About to send ${serviceCecks.length} service checks`)
+  for (const sc of serviceCecks) {
+    const res: httpm.HttpClientResponse = await http.post(
+      `${apiURL}/api/v1/check_run`,
+      JSON.stringify(sc)
+    )
+    if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
+      errors++
+      core.error(`HTTP request failed: ${res.message.statusMessage}`)
+    }
+  }
+
+  if (errors > 0) {
+    throw new Error(
+      `Failed sending ${errors} out of ${serviceCecks.length} events`
+    )
   }
 }

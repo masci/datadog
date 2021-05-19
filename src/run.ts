@@ -15,6 +15,11 @@ export async function run(): Promise<void> {
     const events: dd.Event[] =
       (yaml.safeLoad(core.getInput('events')) as dd.Event[]) || []
     await dd.sendEvents(apiURL, apiKey, events)
+
+    const serviceChecks: dd.ServiceCheck[] =
+      (yaml.safeLoad(core.getInput('service-checks')) as dd.ServiceCheck[]) ||
+      []
+    await dd.sendServiceChecks(apiURL, apiKey, serviceChecks)
   } catch (error) {
     core.setFailed(`Run failed: ${error.message}`)
   }
