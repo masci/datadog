@@ -76,6 +76,29 @@ steps:
             - "project:${{ github.repository }}"
 ```
 
+You can also send Datadog logs from workflows, same as others please note
+how `logs` is indeed a string containing YAML code. For example, an use case
+might be sending when a job has failed:
+
+```yaml
+steps:
+  - name: checkout
+    uses: actions/checkout@v2
+  - name: build
+    run: this-will-fail
+  - name: Datadog
+    if: failure()
+    uses: masci/datadog@v1
+    with:
+      api-key: ${{ secrets.DATADOG_API_KEY }}
+      logs: |
+        - ddsource: "nginx"
+          ddtags: "env:staging,version:5.1"
+          hostname: "i-012345678"
+          message: "2019-11-19T14:37:58,995 INFO [process.name][20081] Hello World"
+          service: "payment"
+```
+
 ## Development
 
 Install the dependencies
