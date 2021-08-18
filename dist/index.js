@@ -942,7 +942,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendServiceChecks = exports.sendEvents = exports.sendMetrics = exports.getClient = void 0;
+exports.sendLogs = exports.sendServiceChecks = exports.sendEvents = exports.sendMetrics = exports.getClient = void 0;
 const core = __importStar(__webpack_require__(470));
 const httpm = __importStar(__webpack_require__(539));
 function getClient(apiKey) {
@@ -1014,6 +1014,25 @@ function sendServiceChecks(apiURL, apiKey, serviceCecks) {
     });
 }
 exports.sendServiceChecks = sendServiceChecks;
+function sendLogs(logApiURL, apiKey, logs) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const http = getClient(apiKey);
+        let errors = 0;
+        core.debug(`About to send ${logs.length} logs`);
+        for (const log of logs) {
+            const res = yield http.post(`${logApiURL}/v1/input`, JSON.stringify(log));
+            if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
+                errors++;
+                core.error(`HTTP request failed: ${res.message.statusMessage}`);
+                throw new Error(`Failed sending ${errors} out of ${logs.length} events`);
+            }
+        }
+        if (errors > 0) {
+            throw new Error(`Failed sending ${errors} out of ${logs.length} events`);
+        }
+    });
+}
+exports.sendLogs = sendLogs;
 
 
 /***/ }),
@@ -5327,8 +5346,12 @@ function run() {
             yield dd.sendMetrics(apiURL, apiKey, metrics);
             const events = yaml.safeLoad(core.getInput('events')) || [];
             yield dd.sendEvents(apiURL, apiKey, events);
-            const serviceChecks = yaml.safeLoad(core.getInput('service-checks')) || [];
+            const serviceChecks = yaml.safeLoad(core.getInput('service-checks')) ||
+                [];
             yield dd.sendServiceChecks(apiURL, apiKey, serviceChecks);
+            const logApiURL = core.getInput('log-api-url') || 'https://http-intake.logs.datadoghq.com';
+            const logs = yaml.safeLoad(core.getInput('logs')) || [];
+            yield dd.sendLogs(logApiURL, apiKey, logs);
         }
         catch (error) {
             core.setFailed(`Run failed: ${error.message}`);

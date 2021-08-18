@@ -126,7 +126,6 @@ export async function sendServiceChecks(
   }
 }
 
-
 export async function sendLogs(
   logApiURL: string,
   apiKey: string,
@@ -144,15 +143,11 @@ export async function sendLogs(
     if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
       errors++
       core.error(`HTTP request failed: ${res.message.statusMessage}`)
-      throw new Error(
-        `Failed sending ${errors} out of ${logs.length} events`
-      )
+      throw new Error(`Failed sending ${errors} out of ${logs.length} events`)
     }
   }
 
   if (errors > 0) {
-    throw new Error(
-      `Failed sending ${errors} out of ${logs.length} events`
-    )
+    throw new Error(`Failed sending ${errors} out of ${logs.length} events`)
   }
 }

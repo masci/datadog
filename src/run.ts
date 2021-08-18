@@ -21,7 +21,7 @@ export async function run(): Promise<void> {
       []
     await dd.sendServiceChecks(apiURL, apiKey, serviceChecks)
 
-    const logApiURL: string = 
+    const logApiURL: string =
       core.getInput('log-api-url') || 'https://http-intake.logs.datadoghq.com'
     const logs: dd.Log[] =
       (yaml.safeLoad(core.getInput('logs')) as dd.Log[]) || []
