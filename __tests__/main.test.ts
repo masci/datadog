@@ -27,6 +27,7 @@ describe('unit-tests', () => {
     expect(dd.sendMetrics).toHaveBeenCalledTimes(0)
     expect(dd.sendEvents).toHaveBeenCalledTimes(0)
     expect(dd.sendServiceChecks).toHaveBeenCalledTimes(0)
+    expect(dd.sendLogs).toHaveBeenCalledTimes(0)
     expect(outSpy).toHaveBeenCalledWith(
       '::error::Run failed: Input required and not supplied: api-key\n'
     )
@@ -52,6 +53,26 @@ describe('unit-tests', () => {
     process.env['INPUT_API-URL'] = ''
   })
 
+  test('default log api endpoint URL', async () => {
+    await run()
+    expect(dd.sendLogs).toHaveBeenCalledWith(
+      'https://http-intake.logs.datadoghq.com',
+      'fooBarBaz',
+      []
+    )
+  })
+
+  test('custom log api endpoint URL', async () => {
+    process.env['INPUT_LOG-API-URL'] = 'http://example.com'
+    await run()
+    expect(dd.sendLogs).toHaveBeenCalledWith(
+      'http://example.com',
+      'fooBarBaz',
+      []
+    )
+    process.env['INPUT_LOG-API-URL'] = ''
+  })
+
   test('run calls the sending functions', async () => {
     await run()
     expect(dd.sendMetrics).toHaveBeenCalledWith(
@@ -66,6 +87,11 @@ describe('unit-tests', () => {
     )
     expect(dd.sendServiceChecks).toHaveBeenCalledWith(
       'https://api.datadoghq.com',
+      'fooBarBaz',
+      []
+    )
+    expect(dd.sendLogs).toHaveBeenCalledWith(
+      'https://http-intake.logs.datadoghq.com',
       'fooBarBaz',
       []
     )
@@ -103,6 +129,15 @@ describe('end-to-end tests', () => {
         status: 0,
         host_name: 'example.com',
         tags: ['foo:bar']
+      }
+    ])
+    process.env['INPUT_LOGS'] = yaml.safeDump([
+      {
+        'ddsource': 'nginx',
+        'ddtags': 'env:staging,version:5.1',
+        'hostname': 'i-012345678',
+        'message': '2019-11-19T14:37:58,995 INFO [process.name][20081] Hello World',
+        'service': 'payment'
       }
     ])
 

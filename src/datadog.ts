@@ -25,6 +25,14 @@ export interface ServiceCheck {
   host_name: string
 }
 
+export interface Log {
+  ddsource: string
+  ddtags: string
+  hostname: string
+  message: string
+  service: string
+}
+
 export function getClient(apiKey: string): httpm.HttpClient {
   return new httpm.HttpClient('dd-http-client', [], {
     headers: {
@@ -114,6 +122,37 @@ export async function sendServiceChecks(
   if (errors > 0) {
     throw new Error(
       `Failed sending ${errors} out of ${serviceCecks.length} events`
+    )
+  }
+}
+
+
+export async function sendLogs(
+  logApiURL: string,
+  apiKey: string,
+  logs: Log[]
+): Promise<void> {
+  const http: httpm.HttpClient = getClient(apiKey)
+  let errors = 0
+
+  core.debug(`About to send ${logs.length} logs`)
+  for (const log of logs) {
+    const res: httpm.HttpClientResponse = await http.post(
+      `${logApiURL}/v1/input`,
+      JSON.stringify(log)
+    )
+    if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
+      errors++
+      core.error(`HTTP request failed: ${res.message.statusMessage}`)
+      throw new Error(
+        `Failed sending ${errors} out of ${logs.length} events`
+      )
+    }
+  }
+
+  if (errors > 0) {
+    throw new Error(
+      `Failed sending ${errors} out of ${logs.length} events`
     )
   }
 }
