@@ -95,7 +95,7 @@ steps:
         - ddsource: "nginx"
           ddtags: "env:staging,version:5.1"
           hostname: "i-012345678"
-          message: "2019-11-19T14:37:58,995 INFO [process.name][20081] Hello World"
+          message: "{\"message\":\"2019-11-19T14:37:58,995 ERROR [process.name][20081] Hello World\", \"level\":\"error\"}"
           service: "payment"
 ```
 

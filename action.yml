@@ -17,6 +17,12 @@ inputs:
   service-checks:
     description: 'A list of service check objects to send, see docs for details'
     default: '[]'
+  log-api-url:
+    description: 'The URL of the Log API endpoint, defaults to JSON or plain text format over HTTPS'
+    default: 'https://http-intake.logs.datadoghq.com'
+  logs:
+    description: 'A list of log objects to send, see docs for details'
+    default: '[]'
 runs:
   using: 'node12'
   main: 'dist/index.js'
