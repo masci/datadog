@@ -1,6 +1,6 @@
 # Datadog Action
 
-[![Build Status](https://github.com/actions/typescript-action/workflows/build-test/badge.svg)](https://github.com/actions/typescript-action/actions)
+[![build-test](https://github.com/masci/datadog/actions/workflows/test.yml/badge.svg)](https://github.com/masci/datadog/actions/workflows/test.yml)
 
 This Action lets you send events and metrics to Datadog from a GitHub workflow.
 
