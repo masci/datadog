@@ -1,18 +1,16 @@
 import {run} from '../src/run'
-import * as dd from '../src/datadog'
+import * as sfx from '../src/signalfx'
 import * as process from 'process'
-import * as core from '@actions/core'
 import * as cp from 'child_process'
 import * as path from 'path'
 import * as yaml from 'js-yaml'
-import {getHeapStatistics} from 'v8'
-jest.mock('../src/datadog')
+jest.mock('../src/signalfx')
 
 describe('unit-tests', () => {
   let outSpy: jest.SpyInstance
 
   beforeEach(() => {
-    process.env['INPUT_API-KEY'] = 'fooBarBaz'
+    process.env['INPUT_TOKEN'] = 'fooBarBaz'
     outSpy = jest.spyOn(process.stdout, 'write')
   })
 
@@ -21,21 +19,19 @@ describe('unit-tests', () => {
     jest.clearAllMocks()
   })
 
-  test('api-key input param must be set', async () => {
-    process.env['INPUT_API-KEY'] = ''
+  test('token input param must be set', async () => {
+    process.env['INPUT_TOKEN'] = ''
     await run()
-    expect(dd.sendMetrics).toHaveBeenCalledTimes(0)
-    expect(dd.sendEvents).toHaveBeenCalledTimes(0)
-    expect(dd.sendServiceChecks).toHaveBeenCalledTimes(0)
+    expect(sfx.sendEvents).toHaveBeenCalledTimes(0)
     expect(outSpy).toHaveBeenCalledWith(
-      '::error::Run failed: Input required and not supplied: api-key\n'
+      '::error::Run failed: Input required and not supplied: token\n'
     )
   })
 
   test('default api endpoint URL', async () => {
     await run()
-    expect(dd.sendMetrics).toHaveBeenCalledWith(
-      'https://api.datadoghq.com',
+    expect(sfx.sendEvents).toHaveBeenCalledWith(
+      'https://ingest.us1.signalfx.com',
       'fooBarBaz',
       []
     )
@@ -44,7 +40,7 @@ describe('unit-tests', () => {
   test('custom api endpoint URL', async () => {
     process.env['INPUT_API-URL'] = 'http://example.com'
     await run()
-    expect(dd.sendMetrics).toHaveBeenCalledWith(
+    expect(sfx.sendEvents).toHaveBeenCalledWith(
       'http://example.com',
       'fooBarBaz',
       []
@@ -54,18 +50,8 @@ describe('unit-tests', () => {
 
   test('run calls the sending functions', async () => {
     await run()
-    expect(dd.sendMetrics).toHaveBeenCalledWith(
-      'https://api.datadoghq.com',
-      'fooBarBaz',
-      []
-    )
-    expect(dd.sendEvents).toHaveBeenCalledWith(
-      'https://api.datadoghq.com',
-      'fooBarBaz',
-      []
-    )
-    expect(dd.sendServiceChecks).toHaveBeenCalledWith(
-      'https://api.datadoghq.com',
+    expect(sfx.sendEvents).toHaveBeenCalledWith(
+      'https://ingest.us1.signalfx.com',
       'fooBarBaz',
       []
     )
@@ -73,36 +59,18 @@ describe('unit-tests', () => {
 })
 
 describe('end-to-end tests', () => {
-  it('actually sends data to the backend when DD_API_KEY env var is set', () => {
-    process.env['INPUT_API-KEY'] = process.env['DD_API_KEY'] || ''
-    if (process.env['INPUT_API-KEY'] === '') {
+  it('actually sends data to the backend when SFX_TOKEN env var is set', () => {
+    process.env['INPUT_TOKEN'] = process.env['SFX_TOKEN'] || ''
+    if (process.env['INPUT_TOKEN'] === '') {
       return
     }
 
-    process.env['INPUT_METRICS'] = yaml.safeDump([
-      {
-        type: 'count',
-        name: 'test.builds.count',
-        value: 1.0,
-        tags: ['foo:bar'],
-        host: 'example.com'
-      }
-    ])
     process.env['INPUT_EVENTS'] = yaml.safeDump([
       {
         title: 'Building success',
         text: 'Version 1.0.0 is available on Docker Hub',
         alert_type: 'info',
         host: 'example.com'
-      }
-    ])
-    process.env['INPUT_SERVICE-CHECKS'] = yaml.safeDump([
-      {
-        check: 'app.ok',
-        message: 'Build has failed',
-        status: 0,
-        host_name: 'example.com',
-        tags: ['foo:bar']
       }
     ])
 

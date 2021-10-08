@@ -908,116 +908,6 @@ module.exports = require("https");
 
 /***/ }),
 
-/***/ 223:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendServiceChecks = exports.sendEvents = exports.sendMetrics = exports.getClient = void 0;
-const core = __importStar(__webpack_require__(470));
-const httpm = __importStar(__webpack_require__(539));
-function getClient(apiKey) {
-    return new httpm.HttpClient('dd-http-client', [], {
-        headers: {
-            'DD-API-KEY': apiKey,
-            'Content-Type': 'application/json'
-        }
-    });
-}
-exports.getClient = getClient;
-function sendMetrics(apiURL, apiKey, metrics) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const http = getClient(apiKey);
-        const s = { series: Array() };
-        const now = Date.now() / 1000; // timestamp must be in seconds
-        // build series payload containing our metrics
-        for (const m of metrics) {
-            s.series.push({
-                metric: m.name,
-                points: [[now, m.value]],
-                type: m.type,
-                host: m.host,
-                tags: m.tags
-            });
-        }
-        // POST data
-        core.debug(`About to send ${metrics.length} metrics`);
-        const res = yield http.post(`${apiURL}/api/v1/series`, JSON.stringify(s));
-        if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-            throw new Error(`HTTP request failed: ${res.message.statusMessage}`);
-        }
-    });
-}
-exports.sendMetrics = sendMetrics;
-function sendEvents(apiURL, apiKey, events) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const http = getClient(apiKey);
-        let errors = 0;
-        core.debug(`About to send ${events.length} events`);
-        for (const ev of events) {
-            const res = yield http.post(`${apiURL}/api/v1/events`, JSON.stringify(ev));
-            if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-                errors++;
-                core.error(`HTTP request failed: ${res.message.statusMessage}`);
-            }
-        }
-        if (errors > 0) {
-            throw new Error(`Failed sending ${errors} out of ${events.length} events`);
-        }
-    });
-}
-exports.sendEvents = sendEvents;
-function sendServiceChecks(apiURL, apiKey, serviceCecks) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const http = getClient(apiKey);
-        let errors = 0;
-        core.debug(`About to send ${serviceCecks.length} service checks`);
-        for (const sc of serviceCecks) {
-            const res = yield http.post(`${apiURL}/api/v1/check_run`, JSON.stringify(sc));
-            if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-                errors++;
-                core.error(`HTTP request failed: ${res.message.statusMessage}`);
-            }
-        }
-        if (errors > 0) {
-            throw new Error(`Failed sending ${errors} out of ${serviceCecks.length} events`);
-        }
-    });
-}
-exports.sendServiceChecks = sendServiceChecks;
-
-
-/***/ }),
-
 /***/ 228:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -3966,6 +3856,74 @@ module.exports = new Schema({
 
 /***/ }),
 
+/***/ 592:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.sendEvents = exports.getClient = void 0;
+const core = __importStar(__webpack_require__(470));
+const httpm = __importStar(__webpack_require__(539));
+function getClient(token) {
+    return new httpm.HttpClient('sfx-http-client', [], {
+        headers: {
+            'X-SF-TOKEN': token,
+            'Content-Type': 'application/json'
+        }
+    });
+}
+exports.getClient = getClient;
+function sendEvents(apiURL, token, events) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const http = getClient(token);
+        let errors = 0;
+        core.debug(`About to send ${events.length} events`);
+        for (const ev of events) {
+            const res = yield http.post(`${apiURL}/v2/event`, JSON.stringify(ev));
+            if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
+                errors++;
+                core.error(`HTTP request failed: ${res.message.statusMessage}`);
+            }
+        }
+        if (errors > 0) {
+            throw new Error(`Failed sending ${errors} out of ${events.length} events`);
+        }
+    });
+}
+exports.sendEvents = sendEvents;
+
+
+/***/ }),
+
 /***/ 605:
 /***/ (function(module) {
 
@@ -5316,19 +5274,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.run = void 0;
 const core = __importStar(__webpack_require__(470));
-const dd = __importStar(__webpack_require__(223));
+const sfx = __importStar(__webpack_require__(592));
 const yaml = __importStar(__webpack_require__(414));
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const apiKey = core.getInput('api-key', { required: true });
-            const apiURL = core.getInput('api-url') || 'https://api.datadoghq.com';
-            const metrics = yaml.safeLoad(core.getInput('metrics')) || [];
-            yield dd.sendMetrics(apiURL, apiKey, metrics);
+            const apiKey = core.getInput('token', { required: true });
+            const apiURL = core.getInput('api-url') || 'https://ingest.us1.signalfx.com';
             const events = yaml.safeLoad(core.getInput('events')) || [];
-            yield dd.sendEvents(apiURL, apiKey, events);
-            const serviceChecks = yaml.safeLoad(core.getInput('service-checks')) || [];
-            yield dd.sendServiceChecks(apiURL, apiKey, serviceChecks);
+            yield sfx.sendEvents(apiURL, apiKey, events);
         }
         catch (error) {
             core.setFailed(`Run failed: ${error.message}`);

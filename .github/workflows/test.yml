@@ -24,17 +24,10 @@ jobs:
     steps:
     - name: checkout
       uses: actions/checkout@v2
-    - name: Datadog
+    - name: Signalfx
       uses: ./
       with:
-        api-key: ${{ secrets.DATADOG_API_KEY }}
-        metrics: |
-          - type: "count"
-            name: "test.runs.count"
-            value: 1.0
-            tags:
-              - "project:${{ github.repository }}"
-              - "branch:${{ github.head_ref }}"
+        token: ${{ secrets.SIGNALFX_TOKEN }}
         events: |
           - title: "Test run succesfully"
             text: "GitHub job ${{ github.job }} ran successfully"
