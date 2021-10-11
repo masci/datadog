@@ -1,8 +1,8 @@
 {
-  "name": "datadog-action",
+  "name": "signalfx-action",
   "version": "1.0.0",
   "private": false,
-  "description": "Datadog action",
+  "description": "Signalfx action",
   "main": "lib/main.js",
   "scripts": {
     "build": "tsc",
@@ -15,14 +15,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/actions/typescript-action.git"
+    "url": "git+https://github.com/RentTheRunway/signalfx-reporting-action"
   },
   "keywords": [
     "actions",
     "node",
     "setup"
   ],
-  "author": "YourNameOrOrganization",
+  "author": "RentTheRunway",
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.2.6",
