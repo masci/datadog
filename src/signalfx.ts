@@ -40,21 +40,14 @@ export async function sendEvents(
   events: Event[]
 ): Promise<void> {
   const http: httpm.HttpClient = getClient(token)
-  let errors = 0
 
   core.debug(`About to send ${events.length} events`)
-  for (const ev of events) {
-    const res: httpm.HttpClientResponse = await http.post(
-      `${apiURL}/v2/event`,
-      JSON.stringify(ev)
-    )
-    if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-      errors++
-      core.error(`HTTP request failed: ${res.message.statusMessage}`)
-    }
-  }
-
-  if (errors > 0) {
-    throw new Error(`Failed sending ${errors} out of ${events.length} events`)
+  const res: httpm.HttpClientResponse = await http.post(
+    `${apiURL}/v2/event`,
+    JSON.stringify(events)
+  )
+  if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
+    core.error(`HTTP request failed: ${res.message.statusMessage}`)
+    throw new Error(`Failed to send events`)
   }
 }

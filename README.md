@@ -23,16 +23,14 @@ steps:
     run: this-will-fail
   - name: Signalfx
     if: failure()
-    uses: RentTheRunway/signalfx@v1
+    uses: RentTheRunway/signalfx-reporting-action@v1
     with:
       token: ${{ secrets.SIGNALFX_TOKEN }}
       events: |
-        - title: "Failed building Foo"
-          text: "Branch ${{ github.head_ref }} failed to build"
-          alert_type: "error"
-          host: ${{ github.repository_owner }}
-          tags:
-            - "project:${{ github.repository }}"
+        - eventType: 'Test'
+          dimensions: {dimension1: 'value1', dimension2: 'value2'}
+          properties: {property1: 'value1', property2: 'value2'}
+          category: 'USER_DEFINED'
 ```
 
 ## Development

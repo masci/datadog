@@ -67,10 +67,10 @@ describe('end-to-end tests', () => {
 
     process.env['INPUT_EVENTS'] = yaml.safeDump([
       {
-        title: 'Building success',
-        text: 'Version 1.0.0 is available on Docker Hub',
-        alert_type: 'info',
-        host: 'example.com'
+        dimensions: {dimension1: 'value1', dimension2: 'value2'},
+        eventType: 'Test',
+        properties: {property1: 'value1', property2: 'value2'},
+        category: 'USER_DEFINED'
       }
     ])
 
