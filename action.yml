@@ -8,21 +8,27 @@ inputs:
   api-url:
     description: 'The URL of the API endpoint, defaults to US datacenter'
     default: 'https://api.datadoghq.com'
+    required: false
   metrics:
     description: 'A list of metrics objects to send, see docs for details'
     default: '[]'
+    required: false
   events:
     description: 'A list of event objects to send, see docs for details'
     default: '[]'
+    required: false
   service-checks:
     description: 'A list of service check objects to send, see docs for details'
     default: '[]'
+    required: false
   log-api-url:
     description: 'The URL of the Log API endpoint, defaults to JSON or plain text format over HTTPS'
     default: 'https://http-intake.logs.datadoghq.com'
+    required: false
   logs:
     description: 'A list of log objects to send, see docs for details'
     default: '[]'
+    required: false
 runs:
   using: 'node12'
   main: 'dist/index.js'
