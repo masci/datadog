@@ -5337,20 +5337,33 @@ exports.run = void 0;
 const core = __importStar(__webpack_require__(470));
 const dd = __importStar(__webpack_require__(223));
 const yaml = __importStar(__webpack_require__(414));
+const fs = __importStar(__webpack_require__(747));
+const loadFromFile = (filename) => {
+    if (!fs.existsSync(filename))
+        return '';
+    return fs.readFileSync(filename, 'utf8').toString();
+};
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const apiKey = core.getInput('api-key', { required: true });
             const apiURL = core.getInput('api-url') || 'https://api.datadoghq.com';
-            const metrics = yaml.safeLoad(core.getInput('metrics')) || [];
+            const metrics = yaml.safeLoad(loadFromFile(core.getInput('metrics-file'))) ||
+                yaml.safeLoad(core.getInput('metrics')) ||
+                [];
             yield dd.sendMetrics(apiURL, apiKey, metrics);
-            const events = yaml.safeLoad(core.getInput('events')) || [];
+            const events = yaml.safeLoad(loadFromFile(core.getInput('events-file'))) ||
+                yaml.safeLoad(core.getInput('events')) ||
+                [];
             yield dd.sendEvents(apiURL, apiKey, events);
-            const serviceChecks = yaml.safeLoad(core.getInput('service-checks')) ||
+            const serviceChecks = yaml.safeLoad(loadFromFile(core.getInput('service-checks-file'))) ||
+                yaml.safeLoad(core.getInput('service-checks')) ||
                 [];
             yield dd.sendServiceChecks(apiURL, apiKey, serviceChecks);
             const logApiURL = core.getInput('log-api-url') || 'https://http-intake.logs.datadoghq.com';
-            const logs = yaml.safeLoad(core.getInput('logs')) || [];
+            const logs = yaml.safeLoad(loadFromFile(core.getInput('logs-file'))) ||
+                yaml.safeLoad(core.getInput('logs')) ||
+                [];
             yield dd.sendLogs(logApiURL, apiKey, logs);
         }
         catch (error) {

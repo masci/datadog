@@ -13,13 +13,25 @@ inputs:
     description: 'A list of metrics objects to send, see docs for details'
     default: '[]'
     required: false
+  metrics-file:
+    description: 'A file path with a list of metrics objects to send, see docs for details'
+    default: ''
+    required: false
   events:
     description: 'A list of event objects to send, see docs for details'
     default: '[]'
     required: false
+  events-file:
+    description: 'A file path with a list of event objects to send, see docs for details'
+    default: ''
+    required: false
   service-checks:
     description: 'A list of service check objects to send, see docs for details'
     default: '[]'
+    required: false
+  service-checks-file:
+    description: 'A file path with a list of service check objects to send, see docs for details'
+    default: ''
     required: false
   log-api-url:
     description: 'The URL of the Log API endpoint, defaults to JSON or plain text format over HTTPS'
@@ -28,6 +40,10 @@ inputs:
   logs:
     description: 'A list of log objects to send, see docs for details'
     default: '[]'
+    required: false
+  logs-file:
+    description: 'A file path with a list of log objects to send, see docs for details'
+    default: ''
     required: false
 runs:
   using: 'node12'
