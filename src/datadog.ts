@@ -102,13 +102,13 @@ export async function sendEvents(
 export async function sendServiceChecks(
   apiURL: string,
   apiKey: string,
-  serviceCecks: ServiceCheck[]
+  serviceChecks: ServiceCheck[]
 ): Promise<void> {
   const http: httpm.HttpClient = getClient(apiKey)
   let errors = 0
 
-  core.debug(`About to send ${serviceCecks.length} service checks`)
-  for (const sc of serviceCecks) {
+  core.debug(`About to send ${serviceChecks.length} service checks`)
+  for (const sc of serviceChecks) {
     const res: httpm.HttpClientResponse = await http.post(
       `${apiURL}/api/v1/check_run`,
       JSON.stringify(sc)
@@ -121,7 +121,7 @@ export async function sendServiceChecks(
 
   if (errors > 0) {
     throw new Error(
-      `Failed sending ${errors} out of ${serviceCecks.length} events`
+      `Failed sending ${errors} out of ${serviceChecks.length} events`
     )
   }
 }
