@@ -5,16 +5,6 @@ export interface Metric {
   type: string
   name: string
   value: number
-  tags: string[]
-  host: string
-}
-
-export interface Event {
-  title: string
-  text: string
-  alert_type: string
-  tags: string[]
-  host: string
 }
 
 export interface ServiceCheck {
@@ -49,5 +39,45 @@ export async function sendEvents(
   if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
     core.error(`HTTP request failed: ${res.message.statusMessage}`)
     throw new Error(`Failed to send events`)
+  }
+}
+
+export async function sendMetrics(
+  apiURL: string,
+  apiKey: string,
+  metrics: Metric[]
+): Promise<void> {
+  const http: httpm.HttpClient = getClient(apiKey)
+  const s = {series: Array()}
+  const now = Date.now() / 1000 // timestamp must be in seconds
+  const jsonPayload =   `{
+    "counter": [
+      ${metrics.filter(metric => metric.type == "counter").map(metric => `
+        {
+          "metric": "${metric.name}",
+          "value": ${metric.value}
+        }
+      `)}
+    ]
+  }`
+
+  // build series payload containing our metrics
+  // for (const m of metrics) {
+  //   s.series.push({
+  //     type: m.type,
+  //     value: [[m.value]],
+  //     name: m.type
+  //   })
+  // }
+
+  // POST data
+  core.debug(`About to send ${metrics.length} metrics`)
+  const res: httpm.HttpClientResponse = await http.post(
+    `${apiURL}/api/v2/datapoint`,
+    JSON.stringify(s)
+  )
+
+  if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
+    throw new Error(`HTTP request failed: ${res.message.statusMessage}`)
   }
 }
