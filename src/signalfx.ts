@@ -15,6 +15,14 @@ export interface ServiceCheck {
   host_name: string
 }
 
+export interface Event {
+  title: string
+  text: string
+  alert_type: string
+  tags: string[]
+  host: string
+}
+
 export function getClient(token: string): httpm.HttpClient {
   return new httpm.HttpClient('sfx-http-client', [], {
     headers: {
