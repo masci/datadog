@@ -11,6 +11,9 @@ inputs:
   events:
     description: 'A list of event objects to send, see docs for details'
     default: '[]'
+  metrics:
+    description: 'A list of metric objects to send'
+    default: '[]'
 runs:
   using: 'node12'
   main: 'dist/index.js'
