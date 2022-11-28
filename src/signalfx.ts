@@ -56,7 +56,7 @@ export async function sendMetrics(
   metrics: Metric[]
 ): Promise<void> {
   const http: httpm.HttpClient = getClient(apiKey)
-  const jsonPayload =   `{
+  const jsonPayload = `{
     "counter": [
       ${metrics.filter(metric => metric.type == "counter").map(metric => `
         {
@@ -66,7 +66,7 @@ export async function sendMetrics(
       `)}
     ]
   }`
-  core.debug(jsonPayload)
+  core.debug(`made jsonpayload`)
   // build series payload containing our metrics
   // for (const m of metrics) {
   //   s.series.push({
