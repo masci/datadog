@@ -81,8 +81,8 @@ export async function sendMetrics(
   // POST data
   core.debug(`About to send ${metrics.length} metrics`)
   const res: httpm.HttpClientResponse = await http.post(
-    `${apiURL}/api/v2/datapoint`,
-    JSON.stringify(jsonPayload)
+    `${apiURL}/v2/datapoint`,
+    jsonPayload
   )
   if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
     throw new Error(`HTTP request failed: ${res.message.statusMessage}`)
