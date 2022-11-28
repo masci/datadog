@@ -11,7 +11,7 @@ export async function run(): Promise<void> {
     const metrics: sfx.Metric[] =
       (yaml.safeLoad(core.getInput('metrics')) as sfx.Metric[]) || []
     await sfx.sendMetrics(apiURL, apiKey, metrics)
-
+    core.debug(metrics)
     const events: sfx.Event[] =
       (yaml.safeLoad(core.getInput('events')) as sfx.Event[]) || []
     await sfx.sendEvents(apiURL, apiKey, events)

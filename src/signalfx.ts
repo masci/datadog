@@ -56,8 +56,6 @@ export async function sendMetrics(
   metrics: Metric[]
 ): Promise<void> {
   const http: httpm.HttpClient = getClient(apiKey)
-  const s = {series: Array()}
-  const now = Date.now() / 1000 // timestamp must be in seconds
   const jsonPayload =   `{
     "counter": [
       ${metrics.filter(metric => metric.type == "counter").map(metric => `
