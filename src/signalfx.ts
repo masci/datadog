@@ -68,7 +68,7 @@ export async function sendMetrics(
       `)}
     ]
   }`
-
+  core.debug(jsonPayload)
   // build series payload containing our metrics
   // for (const m of metrics) {
   //   s.series.push({
