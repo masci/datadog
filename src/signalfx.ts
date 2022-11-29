@@ -58,12 +58,16 @@ export async function sendMetrics(
   const http: httpm.HttpClient = getClient(apiKey)
   const jsonPayload = `{
     "counter": [
-      ${metrics.filter(metric => metric.type == "counter").map(metric => `
+      ${metrics
+        .filter(metric => metric.type == 'counter')
+        .map(
+          metric => `
         {
           "metric": "${metric.name}",
           "value": ${metric.value}
         }
-      `)}
+      `
+        )}
     ]
   }`
   core.debug(`made jsonpayload`)
