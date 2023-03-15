@@ -86,6 +86,7 @@ export async function sendMetrics(
     `${apiURL}/v2/datapoint`,
     jsonPayload
   )
+  console.log(res.data);
   if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
     throw new Error(`HTTP request failed: ${res.message.statusMessage}`)
   }
