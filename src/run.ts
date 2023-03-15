@@ -14,11 +14,11 @@ export async function run(): Promise<void> {
 
     core.debug('set metric')
     console.log(metrics)
-    
+
     const events: sfx.Event[] =
       (yaml.safeLoad(core.getInput('events')) as sfx.Event[]) || []
     await sfx.sendEvents(apiURL, apiKey, events)
-  } catch (error) {
+  } catch (error: any) {
     core.setFailed(`Run failed: ${error.message}`)
   }
 }
