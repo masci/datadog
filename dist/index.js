@@ -2884,7 +2884,7 @@ function sendMetrics(apiURL, apiKey, metrics) {
             "source": "github_actions"
           }
         }
-      `)}
+      `).join(",")}
     ]
   }`;
         core.debug(`made jsonpayload`);

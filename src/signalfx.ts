@@ -70,7 +70,7 @@ export async function sendMetrics(
           }
         }
       `
-        )}
+        ).join(",")}
     ]
   }`
   core.debug(`made jsonpayload`)
