@@ -64,8 +64,7 @@ export async function sendMetrics(
           metric => `
         {
           "metric": "${metric.name}",
-          "value": ${metric.value},
-          "timestamp": ${Date.now()}
+          "value": ${metric.value}
         }
       `
         )}
@@ -87,8 +86,8 @@ export async function sendMetrics(
     `${apiURL}/v2/datapoint`,
     jsonPayload
   )
+  console.log(jsonPayload);
   console.log(await res.readBody());
-  console.log(res);
   if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
     throw new Error(`HTTP request failed: ${res.message.statusMessage}`)
   }
