@@ -2879,7 +2879,10 @@ function sendMetrics(apiURL, apiKey, metrics) {
             .map(metric => `
         {
           "metric": "${metric.name}",
-          "value": ${metric.value}
+          "value": ${metric.value},
+          "dimensions": {
+            "source": "github_actions"
+          }
         }
       `)}
     ]
@@ -2896,8 +2899,8 @@ function sendMetrics(apiURL, apiKey, metrics) {
         // POST data
         core.debug(`About to send ${metrics.length} metrics`);
         const res = yield http.post(`${apiURL}/v2/datapoint`, jsonPayload);
+        console.log(jsonPayload);
         console.log(yield res.readBody());
-        console.log(res);
         if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
             throw new Error(`HTTP request failed: ${res.message.statusMessage}`);
         }
