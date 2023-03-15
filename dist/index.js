@@ -2814,7 +2814,11 @@ module.exports = require("http");
 
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
 }) : (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     o[k2] = m[k];
@@ -2893,6 +2897,7 @@ function sendMetrics(apiURL, apiKey, metrics) {
         core.debug(`About to send ${metrics.length} metrics`);
         const res = yield http.post(`${apiURL}/v2/datapoint`, jsonPayload);
         console.log(yield res.readBody());
+        console.log(res);
         if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
             throw new Error(`HTTP request failed: ${res.message.statusMessage}`);
         }
@@ -2997,7 +3002,11 @@ exports.checkBypass = checkBypass;
 
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
 }) : (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     o[k2] = m[k];
@@ -4631,7 +4640,7 @@ module.exports = Mark;
 
 Object.defineProperty(exports, "__esModule", { value: true });
 const run_1 = __webpack_require__(658);
-run_1.run();
+(0, run_1.run)();
 
 
 /***/ }),
