@@ -64,7 +64,8 @@ export async function sendMetrics(
           metric => `
         {
           "metric": "${metric.name}",
-          "value": ${metric.value}
+          "value": ${metric.value},
+          "timestamp": ${Date.now()}
         }
       `
         )}
