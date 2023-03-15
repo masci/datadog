@@ -64,7 +64,10 @@ export async function sendMetrics(
           metric => `
         {
           "metric": "${metric.name}",
-          "value": ${metric.value}
+          "value": ${metric.value},
+          "dimensions": {
+            "source": "github_actions"
+          }
         }
       `
         )}
