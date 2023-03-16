@@ -2872,34 +2872,39 @@ exports.sendEvents = sendEvents;
 function sendMetrics(apiURL, apiKey, metrics) {
     return __awaiter(this, void 0, void 0, function* () {
         const http = getClient(apiKey);
+        const dimensions = `
+    "dimensions": {
+      "repo": "${process.env['GITHUB_REPOSITORY']}",
+      "source": "github_actions"
+    }
+  `;
         const jsonPayload = `{
     "counter": [
       ${metrics
             .filter(metric => metric.type == 'counter')
-            .map(metric => `
-        {
-          "metric": "${metric.name}",
-          "value": ${metric.value},
-          "dimensions": {
-            "repo": "${process.env['GITHUB_REPOSITORY']}",
-            "source": "github_actions"
-          }
-        }
-      `).join(",")}
+            .map(metric => `{
+            "metric": "${metric.name}",
+            "value": ${metric.value},
+            ${dimensions}
+          }`).join(",")}
     ],
     "gauge": [
       ${metrics
             .filter(metric => metric.type == 'gauge')
-            .map(metric => `
-        {
-          "metric": "${metric.name}",
-          "value": ${metric.value},
-          "dimensions": {
-            "repo": "${process.env['GITHUB_REPOSITORY']}",
-            "source": "github_actions"
-          }
-        }
-      `).join(",")}
+            .map(metric => `{
+            "metric": "${metric.name}",
+            "value": ${metric.value},
+            ${dimensions}
+          }`).join(",")}
+    ],
+    "cumulative_counter": [
+      ${metrics
+            .filter(metric => metric.type == 'cumulative_counter')
+            .map(metric => `{
+            "metric": "${metric.name}",
+            "value": ${metric.value},
+            ${dimensions}
+          }`).join(",")}
     ]
   }`;
         core.debug(`made jsonpayload`);

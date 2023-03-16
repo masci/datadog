@@ -9,10 +9,10 @@ inputs:
     description: 'The URL of the ingest endpoint, defaults to US datacenter'
     default: 'https://ingest.us1.signalfx.com'
   events:
-    description: 'A list of event objects to send, see docs for details'
+    description: 'A list of event objects to send, see README for details.'
     default: '[]'
   metrics:
-    description: 'A list of metric objects to send'
+    description: 'A list of metric objects to send, see README for details.'
     default: '[]'
 runs:
   using: 'node12'

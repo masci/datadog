@@ -56,37 +56,44 @@ export async function sendMetrics(
   metrics: Metric[]
 ): Promise<void> {
   const http: httpm.HttpClient = getClient(apiKey)
+  const dimensions = `
+    "dimensions": {
+      "repo": "${process.env['GITHUB_REPOSITORY']}",
+      "source": "github_actions"
+    }
+  `;
   const jsonPayload = `{
     "counter": [
       ${metrics
         .filter(metric => metric.type == 'counter')
         .map(
-          metric => `
-        {
-          "metric": "${metric.name}",
-          "value": ${metric.value},
-          "dimensions": {
-            "repo": "${process.env['GITHUB_REPOSITORY']}",
-            "source": "github_actions"
-          }
-        }
-      `
+          metric => `{
+            "metric": "${metric.name}",
+            "value": ${metric.value},
+            ${dimensions}
+          }`
         ).join(",")}
     ],
     "gauge": [
       ${metrics
         .filter(metric => metric.type == 'gauge')
         .map(
-          metric => `
-        {
-          "metric": "${metric.name}",
-          "value": ${metric.value},
-          "dimensions": {
-            "repo": "${process.env['GITHUB_REPOSITORY']}",
-            "source": "github_actions"
-          }
-        }
-      `
+          metric => `{
+            "metric": "${metric.name}",
+            "value": ${metric.value},
+            ${dimensions}
+          }`
+        ).join(",")}
+    ],
+    "cumulative_counter": [
+      ${metrics
+        .filter(metric => metric.type == 'cumulative_counter')
+        .map(
+          metric => `{
+            "metric": "${metric.name}",
+            "value": ${metric.value},
+            ${dimensions}
+          }`
         ).join(",")}
     ]
   }`
