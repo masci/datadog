@@ -2887,9 +2887,9 @@ function sendMetrics(apiURL, apiKey, metrics) {
         }
       `).join(",")}
     ],
-    "guage": [
+    "gauge": [
       ${metrics
-            .filter(metric => metric.type == 'guage')
+            .filter(metric => metric.type == 'gauge')
             .map(metric => `
         {
           "metric": "${metric.name}",
