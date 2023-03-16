@@ -71,6 +71,22 @@ export async function sendMetrics(
         }
       `
         ).join(",")}
+    ],
+    "guage": [
+      ${metrics
+        .filter(metric => metric.type == 'guage')
+        .map(
+          metric => `
+        {
+          "metric": "${metric.name}",
+          "value": ${metric.value},
+          "dimensions": {
+            "repo": ${process.env['GITHUB_REPOSITORY']}
+            "source": "github_actions"
+          }
+        }
+      `
+        ).join(",")}
     ]
   }`
   core.debug(`made jsonpayload`)

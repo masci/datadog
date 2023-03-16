@@ -13,7 +13,6 @@ export async function run(): Promise<void> {
     await sfx.sendMetrics(apiURL, apiKey, metrics)
 
     core.debug('set metric')
-    console.log(metrics)
 
     const events: sfx.Event[] =
       (yaml.safeLoad(core.getInput('events')) as sfx.Event[]) || []

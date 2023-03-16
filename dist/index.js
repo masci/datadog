@@ -2885,6 +2885,20 @@ function sendMetrics(apiURL, apiKey, metrics) {
           }
         }
       `).join(",")}
+    ],
+    "guage": [
+      ${metrics
+            .filter(metric => metric.type == 'guage')
+            .map(metric => `
+        {
+          "metric": "${metric.name}",
+          "value": ${metric.value},
+          "dimensions": {
+            "repo": ${process.env['GITHUB_REPOSITORY']}
+            "source": "github_actions"
+          }
+        }
+      `).join(",")}
     ]
   }`;
         core.debug(`made jsonpayload`);
@@ -3048,7 +3062,6 @@ function run() {
             const metrics = yaml.safeLoad(core.getInput('metrics')) || [];
             yield sfx.sendMetrics(apiURL, apiKey, metrics);
             core.debug('set metric');
-            console.log(metrics);
             const events = yaml.safeLoad(core.getInput('events')) || [];
             yield sfx.sendEvents(apiURL, apiKey, events);
         }
