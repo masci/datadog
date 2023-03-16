@@ -81,7 +81,7 @@ export async function sendMetrics(
           "metric": "${metric.name}",
           "value": ${metric.value},
           "dimensions": {
-            "repo": ${process.env['GITHUB_REPOSITORY']}
+            "repo": "${process.env['GITHUB_REPOSITORY']}"
             "source": "github_actions"
           }
         }
