@@ -4,7 +4,9 @@ import * as httpm from '@actions/http-client'
 export interface Metric {
   type: string
   name: string
-  value: number
+  value: number,
+  dimensions: object,
+  properties: object
 }
 
 export interface ServiceCheck {
@@ -56,12 +58,6 @@ export async function sendMetrics(
   metrics: Metric[]
 ): Promise<void> {
   const http: httpm.HttpClient = getClient(apiKey)
-  const dimensions = `
-    "dimensions": {
-      "repo": "${process.env['GITHUB_REPOSITORY']}",
-      "source": "github_actions"
-    }
-  `;
   const jsonPayload = `{
     "counter": [
       ${metrics
@@ -70,9 +66,11 @@ export async function sendMetrics(
           metric => `{
             "metric": "${metric.name}",
             "value": ${metric.value},
-            ${dimensions}
+            "dimensions": ${JSON.stringify(metric.dimensions || {})},
+            "properties": ${JSON.stringify(metric.properties || {})}
           }`
-        ).join(",")}
+        )
+        .join(',')}
     ],
     "gauge": [
       ${metrics
@@ -81,9 +79,11 @@ export async function sendMetrics(
           metric => `{
             "metric": "${metric.name}",
             "value": ${metric.value},
-            ${dimensions}
+            "dimensions": ${JSON.stringify(metric.dimensions || {})},
+            "properties": ${JSON.stringify(metric.properties || {})}
           }`
-        ).join(",")}
+        )
+        .join(',')}
     ],
     "cumulative_counter": [
       ${metrics
@@ -92,29 +92,20 @@ export async function sendMetrics(
           metric => `{
             "metric": "${metric.name}",
             "value": ${metric.value},
-            ${dimensions}
+            "dimensions": ${JSON.stringify(metric.dimensions || {})},
+            "properties": ${JSON.stringify(metric.properties || {})}
           }`
-        ).join(",")}
+        )
+        .join(',')}
     ]
   }`
   core.debug(`made jsonpayload`)
-  // build series payload containing our metrics
-  // for (const m of metrics) {
-  //   s.series.push({
-  //     type: m.type,
-  //     value: [[m.value]],
-  //     name: m.type
-  //   })
-  // }
-
-  // POST data
   core.debug(`About to send ${metrics.length} metrics`)
   const res: httpm.HttpClientResponse = await http.post(
     `${apiURL}/v2/datapoint`,
     jsonPayload
   )
-  console.log(jsonPayload);
-  console.log(await res.readBody());
+  console.log(await res.readBody())
   if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
     throw new Error(`HTTP request failed: ${res.message.statusMessage}`)
   }

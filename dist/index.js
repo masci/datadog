@@ -19,13 +19,7 @@ module.exports =
 /******/ 		};
 /******/
 /******/ 		// Execute the module function
-/******/ 		var threw = true;
-/******/ 		try {
-/******/ 			modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
-/******/ 			threw = false;
-/******/ 		} finally {
-/******/ 			if(threw) delete installedModules[moduleId];
-/******/ 		}
+/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
 /******/
 /******/ 		// Flag the module as loaded
 /******/ 		module.l = true;
@@ -40,7 +34,7 @@ module.exports =
 /******/ 	// the startup function
 /******/ 	function startup() {
 /******/ 		// Load entry module and return exports
-/******/ 		return __webpack_require__(846);
+/******/ 		return __webpack_require__(198);
 /******/ 	};
 /******/
 /******/ 	// run startup
@@ -49,63 +43,49 @@ module.exports =
 /************************************************************************/
 /******/ ({
 
-/***/ 10:
+/***/ 9:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
 
-var Type = __webpack_require__(861);
 
-var _toString = Object.prototype.toString;
+var loader = __webpack_require__(457);
+var dumper = __webpack_require__(685);
 
-function resolveYamlPairs(data) {
-  if (data === null) return true;
 
-  var index, length, pair, keys, result,
-      object = data;
-
-  result = new Array(object.length);
-
-  for (index = 0, length = object.length; index < length; index += 1) {
-    pair = object[index];
-
-    if (_toString.call(pair) !== '[object Object]') return false;
-
-    keys = Object.keys(pair);
-
-    if (keys.length !== 1) return false;
-
-    result[index] = [ keys[0], pair[keys[0]] ];
-  }
-
-  return true;
+function deprecated(name) {
+  return function () {
+    throw new Error('Function ' + name + ' is deprecated and cannot be used.');
+  };
 }
 
-function constructYamlPairs(data) {
-  if (data === null) return [];
 
-  var index, length, pair, keys, result,
-      object = data;
+module.exports.Type                = __webpack_require__(945);
+module.exports.Schema              = __webpack_require__(43);
+module.exports.FAILSAFE_SCHEMA     = __webpack_require__(581);
+module.exports.JSON_SCHEMA         = __webpack_require__(23);
+module.exports.CORE_SCHEMA         = __webpack_require__(611);
+module.exports.DEFAULT_SAFE_SCHEMA = __webpack_require__(723);
+module.exports.DEFAULT_FULL_SCHEMA = __webpack_require__(910);
+module.exports.load                = loader.load;
+module.exports.loadAll             = loader.loadAll;
+module.exports.safeLoad            = loader.safeLoad;
+module.exports.safeLoadAll         = loader.safeLoadAll;
+module.exports.dump                = dumper.dump;
+module.exports.safeDump            = dumper.safeDump;
+module.exports.YAMLException       = __webpack_require__(556);
 
-  result = new Array(object.length);
+// Deprecated schema names from JS-YAML 2.0.x
+module.exports.MINIMAL_SCHEMA = __webpack_require__(581);
+module.exports.SAFE_SCHEMA    = __webpack_require__(723);
+module.exports.DEFAULT_SCHEMA = __webpack_require__(910);
 
-  for (index = 0, length = object.length; index < length; index += 1) {
-    pair = object[index];
-
-    keys = Object.keys(pair);
-
-    result[index] = [ keys[0], pair[keys[0]] ];
-  }
-
-  return result;
-}
-
-module.exports = new Type('tag:yaml.org,2002:pairs', {
-  kind: 'sequence',
-  resolve: resolveYamlPairs,
-  construct: constructYamlPairs
-});
+// Deprecated functions from JS-YAML 1.x.x
+module.exports.scan           = deprecated('scan');
+module.exports.parse          = deprecated('parse');
+module.exports.compose        = deprecated('compose');
+module.exports.addConstructor = deprecated('addConstructor');
 
 
 /***/ }),
@@ -117,14 +97,1035 @@ module.exports = require("tls");
 
 /***/ }),
 
-/***/ 28:
+/***/ 23:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+// Standard YAML's JSON schema.
+// http://www.yaml.org/spec/1.2/spec.html#id2803231
+//
+// NOTE: JS-YAML does not support schema-specific tag resolution restrictions.
+// So, this schema is not such strict as defined in the YAML specification.
+// It allows numbers in binary notaion, use `Null` and `NULL` as `null`, etc.
+
+
+
+
+
+var Schema = __webpack_require__(43);
+
+
+module.exports = new Schema({
+  include: [
+    __webpack_require__(581)
+  ],
+  implicit: [
+    __webpack_require__(809),
+    __webpack_require__(228),
+    __webpack_require__(44),
+    __webpack_require__(417)
+  ]
+});
+
+
+/***/ }),
+
+/***/ 43:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
 
-var common = __webpack_require__(557);
-var Type   = __webpack_require__(861);
+/*eslint-disable max-len*/
+
+var common        = __webpack_require__(740);
+var YAMLException = __webpack_require__(556);
+var Type          = __webpack_require__(945);
+
+
+function compileList(schema, name, result) {
+  var exclude = [];
+
+  schema.include.forEach(function (includedSchema) {
+    result = compileList(includedSchema, name, result);
+  });
+
+  schema[name].forEach(function (currentType) {
+    result.forEach(function (previousType, previousIndex) {
+      if (previousType.tag === currentType.tag && previousType.kind === currentType.kind) {
+        exclude.push(previousIndex);
+      }
+    });
+
+    result.push(currentType);
+  });
+
+  return result.filter(function (type, index) {
+    return exclude.indexOf(index) === -1;
+  });
+}
+
+
+function compileMap(/* lists... */) {
+  var result = {
+        scalar: {},
+        sequence: {},
+        mapping: {},
+        fallback: {}
+      }, index, length;
+
+  function collectType(type) {
+    result[type.kind][type.tag] = result['fallback'][type.tag] = type;
+  }
+
+  for (index = 0, length = arguments.length; index < length; index += 1) {
+    arguments[index].forEach(collectType);
+  }
+  return result;
+}
+
+
+function Schema(definition) {
+  this.include  = definition.include  || [];
+  this.implicit = definition.implicit || [];
+  this.explicit = definition.explicit || [];
+
+  this.implicit.forEach(function (type) {
+    if (type.loadKind && type.loadKind !== 'scalar') {
+      throw new YAMLException('There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.');
+    }
+  });
+
+  this.compiledImplicit = compileList(this, 'implicit', []);
+  this.compiledExplicit = compileList(this, 'explicit', []);
+  this.compiledTypeMap  = compileMap(this.compiledImplicit, this.compiledExplicit);
+}
+
+
+Schema.DEFAULT = null;
+
+
+Schema.create = function createSchema() {
+  var schemas, types;
+
+  switch (arguments.length) {
+    case 1:
+      schemas = Schema.DEFAULT;
+      types = arguments[0];
+      break;
+
+    case 2:
+      schemas = arguments[0];
+      types = arguments[1];
+      break;
+
+    default:
+      throw new YAMLException('Wrong number of arguments for Schema.create function');
+  }
+
+  schemas = common.toArray(schemas);
+  types = common.toArray(types);
+
+  if (!schemas.every(function (schema) { return schema instanceof Schema; })) {
+    throw new YAMLException('Specified list of super schemas (or a single Schema object) contains a non-Schema object.');
+  }
+
+  if (!types.every(function (type) { return type instanceof Type; })) {
+    throw new YAMLException('Specified list of YAML types (or a single Type object) contains a non-Type object.');
+  }
+
+  return new Schema({
+    include: schemas,
+    explicit: types
+  });
+};
+
+
+module.exports = Schema;
+
+
+/***/ }),
+
+/***/ 44:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var common = __webpack_require__(740);
+var Type   = __webpack_require__(945);
+
+function isHexCode(c) {
+  return ((0x30/* 0 */ <= c) && (c <= 0x39/* 9 */)) ||
+         ((0x41/* A */ <= c) && (c <= 0x46/* F */)) ||
+         ((0x61/* a */ <= c) && (c <= 0x66/* f */));
+}
+
+function isOctCode(c) {
+  return ((0x30/* 0 */ <= c) && (c <= 0x37/* 7 */));
+}
+
+function isDecCode(c) {
+  return ((0x30/* 0 */ <= c) && (c <= 0x39/* 9 */));
+}
+
+function resolveYamlInteger(data) {
+  if (data === null) return false;
+
+  var max = data.length,
+      index = 0,
+      hasDigits = false,
+      ch;
+
+  if (!max) return false;
+
+  ch = data[index];
+
+  // sign
+  if (ch === '-' || ch === '+') {
+    ch = data[++index];
+  }
+
+  if (ch === '0') {
+    // 0
+    if (index + 1 === max) return true;
+    ch = data[++index];
+
+    // base 2, base 8, base 16
+
+    if (ch === 'b') {
+      // base 2
+      index++;
+
+      for (; index < max; index++) {
+        ch = data[index];
+        if (ch === '_') continue;
+        if (ch !== '0' && ch !== '1') return false;
+        hasDigits = true;
+      }
+      return hasDigits && ch !== '_';
+    }
+
+
+    if (ch === 'x') {
+      // base 16
+      index++;
+
+      for (; index < max; index++) {
+        ch = data[index];
+        if (ch === '_') continue;
+        if (!isHexCode(data.charCodeAt(index))) return false;
+        hasDigits = true;
+      }
+      return hasDigits && ch !== '_';
+    }
+
+    // base 8
+    for (; index < max; index++) {
+      ch = data[index];
+      if (ch === '_') continue;
+      if (!isOctCode(data.charCodeAt(index))) return false;
+      hasDigits = true;
+    }
+    return hasDigits && ch !== '_';
+  }
+
+  // base 10 (except 0) or base 60
+
+  // value should not start with `_`;
+  if (ch === '_') return false;
+
+  for (; index < max; index++) {
+    ch = data[index];
+    if (ch === '_') continue;
+    if (ch === ':') break;
+    if (!isDecCode(data.charCodeAt(index))) {
+      return false;
+    }
+    hasDigits = true;
+  }
+
+  // Should have digits and should not end with `_`
+  if (!hasDigits || ch === '_') return false;
+
+  // if !base60 - done;
+  if (ch !== ':') return true;
+
+  // base60 almost not used, no needs to optimize
+  return /^(:[0-5]?[0-9])+$/.test(data.slice(index));
+}
+
+function constructYamlInteger(data) {
+  var value = data, sign = 1, ch, base, digits = [];
+
+  if (value.indexOf('_') !== -1) {
+    value = value.replace(/_/g, '');
+  }
+
+  ch = value[0];
+
+  if (ch === '-' || ch === '+') {
+    if (ch === '-') sign = -1;
+    value = value.slice(1);
+    ch = value[0];
+  }
+
+  if (value === '0') return 0;
+
+  if (ch === '0') {
+    if (value[1] === 'b') return sign * parseInt(value.slice(2), 2);
+    if (value[1] === 'x') return sign * parseInt(value, 16);
+    return sign * parseInt(value, 8);
+  }
+
+  if (value.indexOf(':') !== -1) {
+    value.split(':').forEach(function (v) {
+      digits.unshift(parseInt(v, 10));
+    });
+
+    value = 0;
+    base = 1;
+
+    digits.forEach(function (d) {
+      value += (d * base);
+      base *= 60;
+    });
+
+    return sign * value;
+
+  }
+
+  return sign * parseInt(value, 10);
+}
+
+function isInteger(object) {
+  return (Object.prototype.toString.call(object)) === '[object Number]' &&
+         (object % 1 === 0 && !common.isNegativeZero(object));
+}
+
+module.exports = new Type('tag:yaml.org,2002:int', {
+  kind: 'scalar',
+  resolve: resolveYamlInteger,
+  construct: constructYamlInteger,
+  predicate: isInteger,
+  represent: {
+    binary:      function (obj) { return obj >= 0 ? '0b' + obj.toString(2) : '-0b' + obj.toString(2).slice(1); },
+    octal:       function (obj) { return obj >= 0 ? '0'  + obj.toString(8) : '-0'  + obj.toString(8).slice(1); },
+    decimal:     function (obj) { return obj.toString(10); },
+    /* eslint-disable max-len */
+    hexadecimal: function (obj) { return obj >= 0 ? '0x' + obj.toString(16).toUpperCase() :  '-0x' + obj.toString(16).toUpperCase().slice(1); }
+  },
+  defaultStyle: 'decimal',
+  styleAliases: {
+    binary:      [ 2,  'bin' ],
+    octal:       [ 8,  'oct' ],
+    decimal:     [ 10, 'dec' ],
+    hexadecimal: [ 16, 'hex' ]
+  }
+});
+
+
+/***/ }),
+
+/***/ 82:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+// We use any as a valid input type
+/* eslint-disable @typescript-eslint/no-explicit-any */
+Object.defineProperty(exports, "__esModule", { value: true });
+/**
+ * Sanitizes an input into a string so it can be passed into issueCommand safely
+ * @param input input to sanitize into a string
+ */
+function toCommandValue(input) {
+    if (input === null || input === undefined) {
+        return '';
+    }
+    else if (typeof input === 'string' || input instanceof String) {
+        return input;
+    }
+    return JSON.stringify(input);
+}
+exports.toCommandValue = toCommandValue;
+//# sourceMappingURL=utils.js.map
+
+/***/ }),
+
+/***/ 87:
+/***/ (function(module) {
+
+module.exports = require("os");
+
+/***/ }),
+
+/***/ 93:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+
+var common = __webpack_require__(740);
+
+
+function Mark(name, buffer, position, line, column) {
+  this.name     = name;
+  this.buffer   = buffer;
+  this.position = position;
+  this.line     = line;
+  this.column   = column;
+}
+
+
+Mark.prototype.getSnippet = function getSnippet(indent, maxLength) {
+  var head, start, tail, end, snippet;
+
+  if (!this.buffer) return null;
+
+  indent = indent || 4;
+  maxLength = maxLength || 75;
+
+  head = '';
+  start = this.position;
+
+  while (start > 0 && '\x00\r\n\x85\u2028\u2029'.indexOf(this.buffer.charAt(start - 1)) === -1) {
+    start -= 1;
+    if (this.position - start > (maxLength / 2 - 1)) {
+      head = ' ... ';
+      start += 5;
+      break;
+    }
+  }
+
+  tail = '';
+  end = this.position;
+
+  while (end < this.buffer.length && '\x00\r\n\x85\u2028\u2029'.indexOf(this.buffer.charAt(end)) === -1) {
+    end += 1;
+    if (end - this.position > (maxLength / 2 - 1)) {
+      tail = ' ... ';
+      end -= 5;
+      break;
+    }
+  }
+
+  snippet = this.buffer.slice(start, end);
+
+  return common.repeat(' ', indent) + head + snippet + tail + '\n' +
+         common.repeat(' ', indent + this.position - start + head.length) + '^';
+};
+
+
+Mark.prototype.toString = function toString(compact) {
+  var snippet, where = '';
+
+  if (this.name) {
+    where += 'in "' + this.name + '" ';
+  }
+
+  where += 'at line ' + (this.line + 1) + ', column ' + (this.column + 1);
+
+  if (!compact) {
+    snippet = this.getSnippet();
+
+    if (snippet) {
+      where += ':\n' + snippet;
+    }
+  }
+
+  return where;
+};
+
+
+module.exports = Mark;
+
+
+/***/ }),
+
+/***/ 100:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var Type = __webpack_require__(945);
+
+var _hasOwnProperty = Object.prototype.hasOwnProperty;
+
+function resolveYamlSet(data) {
+  if (data === null) return true;
+
+  var key, object = data;
+
+  for (key in object) {
+    if (_hasOwnProperty.call(object, key)) {
+      if (object[key] !== null) return false;
+    }
+  }
+
+  return true;
+}
+
+function constructYamlSet(data) {
+  return data !== null ? data : {};
+}
+
+module.exports = new Type('tag:yaml.org,2002:set', {
+  kind: 'mapping',
+  resolve: resolveYamlSet,
+  construct: constructYamlSet
+});
+
+
+/***/ }),
+
+/***/ 102:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+// For internal use, subject to change.
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+// We use any as a valid input type
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const fs = __importStar(__webpack_require__(747));
+const os = __importStar(__webpack_require__(87));
+const utils_1 = __webpack_require__(82);
+function issueCommand(command, message) {
+    const filePath = process.env[`GITHUB_${command}`];
+    if (!filePath) {
+        throw new Error(`Unable to find environment variable for file command ${command}`);
+    }
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`Missing file at path: ${filePath}`);
+    }
+    fs.appendFileSync(filePath, `${utils_1.toCommandValue(message)}${os.EOL}`, {
+        encoding: 'utf8'
+    });
+}
+exports.issueCommand = issueCommand;
+//# sourceMappingURL=file-command.js.map
+
+/***/ }),
+
+/***/ 141:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+
+var net = __webpack_require__(631);
+var tls = __webpack_require__(16);
+var http = __webpack_require__(605);
+var https = __webpack_require__(211);
+var events = __webpack_require__(614);
+var assert = __webpack_require__(357);
+var util = __webpack_require__(669);
+
+
+exports.httpOverHttp = httpOverHttp;
+exports.httpsOverHttp = httpsOverHttp;
+exports.httpOverHttps = httpOverHttps;
+exports.httpsOverHttps = httpsOverHttps;
+
+
+function httpOverHttp(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = http.request;
+  return agent;
+}
+
+function httpsOverHttp(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = http.request;
+  agent.createSocket = createSecureSocket;
+  agent.defaultPort = 443;
+  return agent;
+}
+
+function httpOverHttps(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = https.request;
+  return agent;
+}
+
+function httpsOverHttps(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = https.request;
+  agent.createSocket = createSecureSocket;
+  agent.defaultPort = 443;
+  return agent;
+}
+
+
+function TunnelingAgent(options) {
+  var self = this;
+  self.options = options || {};
+  self.proxyOptions = self.options.proxy || {};
+  self.maxSockets = self.options.maxSockets || http.Agent.defaultMaxSockets;
+  self.requests = [];
+  self.sockets = [];
+
+  self.on('free', function onFree(socket, host, port, localAddress) {
+    var options = toOptions(host, port, localAddress);
+    for (var i = 0, len = self.requests.length; i < len; ++i) {
+      var pending = self.requests[i];
+      if (pending.host === options.host && pending.port === options.port) {
+        // Detect the request to connect same origin server,
+        // reuse the connection.
+        self.requests.splice(i, 1);
+        pending.request.onSocket(socket);
+        return;
+      }
+    }
+    socket.destroy();
+    self.removeSocket(socket);
+  });
+}
+util.inherits(TunnelingAgent, events.EventEmitter);
+
+TunnelingAgent.prototype.addRequest = function addRequest(req, host, port, localAddress) {
+  var self = this;
+  var options = mergeOptions({request: req}, self.options, toOptions(host, port, localAddress));
+
+  if (self.sockets.length >= this.maxSockets) {
+    // We are over limit so we'll add it to the queue.
+    self.requests.push(options);
+    return;
+  }
+
+  // If we are under maxSockets create a new one.
+  self.createSocket(options, function(socket) {
+    socket.on('free', onFree);
+    socket.on('close', onCloseOrRemove);
+    socket.on('agentRemove', onCloseOrRemove);
+    req.onSocket(socket);
+
+    function onFree() {
+      self.emit('free', socket, options);
+    }
+
+    function onCloseOrRemove(err) {
+      self.removeSocket(socket);
+      socket.removeListener('free', onFree);
+      socket.removeListener('close', onCloseOrRemove);
+      socket.removeListener('agentRemove', onCloseOrRemove);
+    }
+  });
+};
+
+TunnelingAgent.prototype.createSocket = function createSocket(options, cb) {
+  var self = this;
+  var placeholder = {};
+  self.sockets.push(placeholder);
+
+  var connectOptions = mergeOptions({}, self.proxyOptions, {
+    method: 'CONNECT',
+    path: options.host + ':' + options.port,
+    agent: false,
+    headers: {
+      host: options.host + ':' + options.port
+    }
+  });
+  if (options.localAddress) {
+    connectOptions.localAddress = options.localAddress;
+  }
+  if (connectOptions.proxyAuth) {
+    connectOptions.headers = connectOptions.headers || {};
+    connectOptions.headers['Proxy-Authorization'] = 'Basic ' +
+        new Buffer(connectOptions.proxyAuth).toString('base64');
+  }
+
+  debug('making CONNECT request');
+  var connectReq = self.request(connectOptions);
+  connectReq.useChunkedEncodingByDefault = false; // for v0.6
+  connectReq.once('response', onResponse); // for v0.6
+  connectReq.once('upgrade', onUpgrade);   // for v0.6
+  connectReq.once('connect', onConnect);   // for v0.7 or later
+  connectReq.once('error', onError);
+  connectReq.end();
+
+  function onResponse(res) {
+    // Very hacky. This is necessary to avoid http-parser leaks.
+    res.upgrade = true;
+  }
+
+  function onUpgrade(res, socket, head) {
+    // Hacky.
+    process.nextTick(function() {
+      onConnect(res, socket, head);
+    });
+  }
+
+  function onConnect(res, socket, head) {
+    connectReq.removeAllListeners();
+    socket.removeAllListeners();
+
+    if (res.statusCode !== 200) {
+      debug('tunneling socket could not be established, statusCode=%d',
+        res.statusCode);
+      socket.destroy();
+      var error = new Error('tunneling socket could not be established, ' +
+        'statusCode=' + res.statusCode);
+      error.code = 'ECONNRESET';
+      options.request.emit('error', error);
+      self.removeSocket(placeholder);
+      return;
+    }
+    if (head.length > 0) {
+      debug('got illegal response body from proxy');
+      socket.destroy();
+      var error = new Error('got illegal response body from proxy');
+      error.code = 'ECONNRESET';
+      options.request.emit('error', error);
+      self.removeSocket(placeholder);
+      return;
+    }
+    debug('tunneling connection has established');
+    self.sockets[self.sockets.indexOf(placeholder)] = socket;
+    return cb(socket);
+  }
+
+  function onError(cause) {
+    connectReq.removeAllListeners();
+
+    debug('tunneling socket could not be established, cause=%s\n',
+          cause.message, cause.stack);
+    var error = new Error('tunneling socket could not be established, ' +
+                          'cause=' + cause.message);
+    error.code = 'ECONNRESET';
+    options.request.emit('error', error);
+    self.removeSocket(placeholder);
+  }
+};
+
+TunnelingAgent.prototype.removeSocket = function removeSocket(socket) {
+  var pos = this.sockets.indexOf(socket)
+  if (pos === -1) {
+    return;
+  }
+  this.sockets.splice(pos, 1);
+
+  var pending = this.requests.shift();
+  if (pending) {
+    // If we have pending requests and a socket gets closed a new one
+    // needs to be created to take over in the pool for the one that closed.
+    this.createSocket(pending, function(socket) {
+      pending.request.onSocket(socket);
+    });
+  }
+};
+
+function createSecureSocket(options, cb) {
+  var self = this;
+  TunnelingAgent.prototype.createSocket.call(self, options, function(socket) {
+    var hostHeader = options.request.getHeader('host');
+    var tlsOptions = mergeOptions({}, self.options, {
+      socket: socket,
+      servername: hostHeader ? hostHeader.replace(/:.*$/, '') : options.host
+    });
+
+    // 0 is dummy port for v0.6
+    var secureSocket = tls.connect(0, tlsOptions);
+    self.sockets[self.sockets.indexOf(socket)] = secureSocket;
+    cb(secureSocket);
+  });
+}
+
+
+function toOptions(host, port, localAddress) {
+  if (typeof host === 'string') { // since v0.10
+    return {
+      host: host,
+      port: port,
+      localAddress: localAddress
+    };
+  }
+  return host; // for v0.11 or later
+}
+
+function mergeOptions(target) {
+  for (var i = 1, len = arguments.length; i < len; ++i) {
+    var overrides = arguments[i];
+    if (typeof overrides === 'object') {
+      var keys = Object.keys(overrides);
+      for (var j = 0, keyLen = keys.length; j < keyLen; ++j) {
+        var k = keys[j];
+        if (overrides[k] !== undefined) {
+          target[k] = overrides[k];
+        }
+      }
+    }
+  }
+  return target;
+}
+
+
+var debug;
+if (process.env.NODE_DEBUG && /\btunnel\b/.test(process.env.NODE_DEBUG)) {
+  debug = function() {
+    var args = Array.prototype.slice.call(arguments);
+    if (typeof args[0] === 'string') {
+      args[0] = 'TUNNEL: ' + args[0];
+    } else {
+      args.unshift('TUNNEL:');
+    }
+    console.error.apply(console, args);
+  }
+} else {
+  debug = function() {};
+}
+exports.debug = debug; // for test
+
+
+/***/ }),
+
+/***/ 198:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const run_1 = __webpack_require__(861);
+run_1.run();
+
+
+/***/ }),
+
+/***/ 211:
+/***/ (function(module) {
+
+module.exports = require("https");
+
+/***/ }),
+
+/***/ 228:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var Type = __webpack_require__(945);
+
+function resolveYamlBoolean(data) {
+  if (data === null) return false;
+
+  var max = data.length;
+
+  return (max === 4 && (data === 'true' || data === 'True' || data === 'TRUE')) ||
+         (max === 5 && (data === 'false' || data === 'False' || data === 'FALSE'));
+}
+
+function constructYamlBoolean(data) {
+  return data === 'true' ||
+         data === 'True' ||
+         data === 'TRUE';
+}
+
+function isBoolean(object) {
+  return Object.prototype.toString.call(object) === '[object Boolean]';
+}
+
+module.exports = new Type('tag:yaml.org,2002:bool', {
+  kind: 'scalar',
+  resolve: resolveYamlBoolean,
+  construct: constructYamlBoolean,
+  predicate: isBoolean,
+  represent: {
+    lowercase: function (object) { return object ? 'true' : 'false'; },
+    uppercase: function (object) { return object ? 'TRUE' : 'FALSE'; },
+    camelcase: function (object) { return object ? 'True' : 'False'; }
+  },
+  defaultStyle: 'lowercase'
+});
+
+
+/***/ }),
+
+/***/ 352:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var esprima;
+
+// Browserified version does not have esprima
+//
+// 1. For node.js just require module as deps
+// 2. For browser try to require mudule via external AMD system.
+//    If not found - try to fallback to window.esprima. If not
+//    found too - then fail to parse.
+//
+try {
+  // workaround to exclude package from browserify list.
+  var _require = require;
+  esprima = _require('esprima');
+} catch (_) {
+  /* eslint-disable no-redeclare */
+  /* global window */
+  if (typeof window !== 'undefined') esprima = window.esprima;
+}
+
+var Type = __webpack_require__(945);
+
+function resolveJavascriptFunction(data) {
+  if (data === null) return false;
+
+  try {
+    var source = '(' + data + ')',
+        ast    = esprima.parse(source, { range: true });
+
+    if (ast.type                    !== 'Program'             ||
+        ast.body.length             !== 1                     ||
+        ast.body[0].type            !== 'ExpressionStatement' ||
+        (ast.body[0].expression.type !== 'ArrowFunctionExpression' &&
+          ast.body[0].expression.type !== 'FunctionExpression')) {
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+function constructJavascriptFunction(data) {
+  /*jslint evil:true*/
+
+  var source = '(' + data + ')',
+      ast    = esprima.parse(source, { range: true }),
+      params = [],
+      body;
+
+  if (ast.type                    !== 'Program'             ||
+      ast.body.length             !== 1                     ||
+      ast.body[0].type            !== 'ExpressionStatement' ||
+      (ast.body[0].expression.type !== 'ArrowFunctionExpression' &&
+        ast.body[0].expression.type !== 'FunctionExpression')) {
+    throw new Error('Failed to resolve function');
+  }
+
+  ast.body[0].expression.params.forEach(function (param) {
+    params.push(param.name);
+  });
+
+  body = ast.body[0].expression.body.range;
+
+  // Esprima's ranges include the first '{' and the last '}' characters on
+  // function expressions. So cut them out.
+  if (ast.body[0].expression.body.type === 'BlockStatement') {
+    /*eslint-disable no-new-func*/
+    return new Function(params, source.slice(body[0] + 1, body[1] - 1));
+  }
+  // ES6 arrow functions can omit the BlockStatement. In that case, just return
+  // the body.
+  /*eslint-disable no-new-func*/
+  return new Function(params, 'return ' + source.slice(body[0], body[1]));
+}
+
+function representJavascriptFunction(object /*, style*/) {
+  return object.toString();
+}
+
+function isFunction(object) {
+  return Object.prototype.toString.call(object) === '[object Function]';
+}
+
+module.exports = new Type('tag:yaml.org,2002:js/function', {
+  kind: 'scalar',
+  resolve: resolveJavascriptFunction,
+  construct: constructJavascriptFunction,
+  predicate: isFunction,
+  represent: representJavascriptFunction
+});
+
+
+/***/ }),
+
+/***/ 357:
+/***/ (function(module) {
+
+module.exports = require("assert");
+
+/***/ }),
+
+/***/ 386:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var Type = __webpack_require__(945);
+
+function resolveJavascriptUndefined() {
+  return true;
+}
+
+function constructJavascriptUndefined() {
+  /*eslint-disable no-undefined*/
+  return undefined;
+}
+
+function representJavascriptUndefined() {
+  return '';
+}
+
+function isUndefined(object) {
+  return typeof object === 'undefined';
+}
+
+module.exports = new Type('tag:yaml.org,2002:js/undefined', {
+  kind: 'scalar',
+  resolve: resolveJavascriptUndefined,
+  construct: constructJavascriptUndefined,
+  predicate: isUndefined,
+  represent: representJavascriptUndefined
+});
+
+
+/***/ }),
+
+/***/ 413:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+module.exports = __webpack_require__(141);
+
+
+/***/ }),
+
+/***/ 414:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+
+var yaml = __webpack_require__(9);
+
+
+module.exports = yaml;
+
+
+/***/ }),
+
+/***/ 417:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var common = __webpack_require__(740);
+var Type   = __webpack_require__(945);
 
 var YAML_FLOAT_PATTERN = new RegExp(
   // 2.5e4, 2.5 and integers
@@ -241,144 +1242,93 @@ module.exports = new Type('tag:yaml.org,2002:float', {
 
 /***/ }),
 
-/***/ 30:
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ 431:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
-
-var Type = __webpack_require__(861);
-
-function resolveYamlNull(data) {
-  if (data === null) return true;
-
-  var max = data.length;
-
-  return (max === 1 && data === '~') ||
-         (max === 4 && (data === 'null' || data === 'Null' || data === 'NULL'));
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const os = __importStar(__webpack_require__(87));
+const utils_1 = __webpack_require__(82);
+/**
+ * Commands
+ *
+ * Command Format:
+ *   ::name key=value,key=value::message
+ *
+ * Examples:
+ *   ::warning::This is the message
+ *   ::set-env name=MY_VAR::some value
+ */
+function issueCommand(command, properties, message) {
+    const cmd = new Command(command, properties, message);
+    process.stdout.write(cmd.toString() + os.EOL);
 }
-
-function constructYamlNull() {
-  return null;
+exports.issueCommand = issueCommand;
+function issue(name, message = '') {
+    issueCommand(name, {}, message);
 }
-
-function isNull(object) {
-  return object === null;
-}
-
-module.exports = new Type('tag:yaml.org,2002:null', {
-  kind: 'scalar',
-  resolve: resolveYamlNull,
-  construct: constructYamlNull,
-  predicate: isNull,
-  represent: {
-    canonical: function () { return '~';    },
-    lowercase: function () { return 'null'; },
-    uppercase: function () { return 'NULL'; },
-    camelcase: function () { return 'Null'; }
-  },
-  defaultStyle: 'lowercase'
-});
-
-
-/***/ }),
-
-/***/ 38:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-
-var Type = __webpack_require__(861);
-
-function resolveJavascriptUndefined() {
-  return true;
-}
-
-function constructJavascriptUndefined() {
-  /*eslint-disable no-undefined*/
-  return undefined;
-}
-
-function representJavascriptUndefined() {
-  return '';
-}
-
-function isUndefined(object) {
-  return typeof object === 'undefined';
-}
-
-module.exports = new Type('tag:yaml.org,2002:js/undefined', {
-  kind: 'scalar',
-  resolve: resolveJavascriptUndefined,
-  construct: constructJavascriptUndefined,
-  predicate: isUndefined,
-  represent: representJavascriptUndefined
-});
-
-
-/***/ }),
-
-/***/ 71:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-
-var Type = __webpack_require__(861);
-
-var _hasOwnProperty = Object.prototype.hasOwnProperty;
-var _toString       = Object.prototype.toString;
-
-function resolveYamlOmap(data) {
-  if (data === null) return true;
-
-  var objectKeys = [], index, length, pair, pairKey, pairHasKey,
-      object = data;
-
-  for (index = 0, length = object.length; index < length; index += 1) {
-    pair = object[index];
-    pairHasKey = false;
-
-    if (_toString.call(pair) !== '[object Object]') return false;
-
-    for (pairKey in pair) {
-      if (_hasOwnProperty.call(pair, pairKey)) {
-        if (!pairHasKey) pairHasKey = true;
-        else return false;
-      }
+exports.issue = issue;
+const CMD_STRING = '::';
+class Command {
+    constructor(command, properties, message) {
+        if (!command) {
+            command = 'missing.command';
+        }
+        this.command = command;
+        this.properties = properties;
+        this.message = message;
     }
-
-    if (!pairHasKey) return false;
-
-    if (objectKeys.indexOf(pairKey) === -1) objectKeys.push(pairKey);
-    else return false;
-  }
-
-  return true;
+    toString() {
+        let cmdStr = CMD_STRING + this.command;
+        if (this.properties && Object.keys(this.properties).length > 0) {
+            cmdStr += ' ';
+            let first = true;
+            for (const key in this.properties) {
+                if (this.properties.hasOwnProperty(key)) {
+                    const val = this.properties[key];
+                    if (val) {
+                        if (first) {
+                            first = false;
+                        }
+                        else {
+                            cmdStr += ',';
+                        }
+                        cmdStr += `${key}=${escapeProperty(val)}`;
+                    }
+                }
+            }
+        }
+        cmdStr += `${CMD_STRING}${escapeData(this.message)}`;
+        return cmdStr;
+    }
 }
-
-function constructYamlOmap(data) {
-  return data !== null ? data : [];
+function escapeData(s) {
+    return utils_1.toCommandValue(s)
+        .replace(/%/g, '%25')
+        .replace(/\r/g, '%0D')
+        .replace(/\n/g, '%0A');
 }
-
-module.exports = new Type('tag:yaml.org,2002:omap', {
-  kind: 'sequence',
-  resolve: resolveYamlOmap,
-  construct: constructYamlOmap
-});
-
+function escapeProperty(s) {
+    return utils_1.toCommandValue(s)
+        .replace(/%/g, '%25')
+        .replace(/\r/g, '%0D')
+        .replace(/\n/g, '%0A')
+        .replace(/:/g, '%3A')
+        .replace(/,/g, '%2C');
+}
+//# sourceMappingURL=command.js.map
 
 /***/ }),
 
-/***/ 87:
-/***/ (function(module) {
-
-module.exports = require("os");
-
-/***/ }),
-
-/***/ 97:
+/***/ 457:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
@@ -386,11 +1336,11 @@ module.exports = require("os");
 
 /*eslint-disable max-len,no-use-before-define*/
 
-var common              = __webpack_require__(557);
-var YAMLException       = __webpack_require__(984);
-var Mark                = __webpack_require__(844);
-var DEFAULT_SAFE_SCHEMA = __webpack_require__(773);
-var DEFAULT_FULL_SCHEMA = __webpack_require__(930);
+var common              = __webpack_require__(740);
+var YAMLException       = __webpack_require__(556);
+var Mark                = __webpack_require__(93);
+var DEFAULT_SAFE_SCHEMA = __webpack_require__(723);
+var DEFAULT_FULL_SCHEMA = __webpack_require__(910);
 
 
 var _hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -2030,200 +2980,1003 @@ module.exports.safeLoad    = safeLoad;
 
 /***/ }),
 
-/***/ 112:
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ 470:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
-
-
-var loader = __webpack_require__(97);
-var dumper = __webpack_require__(756);
-
-
-function deprecated(name) {
-  return function () {
-    throw new Error('Function ' + name + ' is deprecated and cannot be used.');
-  };
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const command_1 = __webpack_require__(431);
+const file_command_1 = __webpack_require__(102);
+const utils_1 = __webpack_require__(82);
+const os = __importStar(__webpack_require__(87));
+const path = __importStar(__webpack_require__(622));
+/**
+ * The code to exit an action
+ */
+var ExitCode;
+(function (ExitCode) {
+    /**
+     * A code indicating that the action was successful
+     */
+    ExitCode[ExitCode["Success"] = 0] = "Success";
+    /**
+     * A code indicating that the action was a failure
+     */
+    ExitCode[ExitCode["Failure"] = 1] = "Failure";
+})(ExitCode = exports.ExitCode || (exports.ExitCode = {}));
+//-----------------------------------------------------------------------
+// Variables
+//-----------------------------------------------------------------------
+/**
+ * Sets env variable for this action and future actions in the job
+ * @param name the name of the variable to set
+ * @param val the value of the variable. Non-string values will be converted to a string via JSON.stringify
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function exportVariable(name, val) {
+    const convertedVal = utils_1.toCommandValue(val);
+    process.env[name] = convertedVal;
+    const filePath = process.env['GITHUB_ENV'] || '';
+    if (filePath) {
+        const delimiter = '_GitHubActionsFileCommandDelimeter_';
+        const commandValue = `${name}<<${delimiter}${os.EOL}${convertedVal}${os.EOL}${delimiter}`;
+        file_command_1.issueCommand('ENV', commandValue);
+    }
+    else {
+        command_1.issueCommand('set-env', { name }, convertedVal);
+    }
 }
+exports.exportVariable = exportVariable;
+/**
+ * Registers a secret which will get masked from logs
+ * @param secret value of the secret
+ */
+function setSecret(secret) {
+    command_1.issueCommand('add-mask', {}, secret);
+}
+exports.setSecret = setSecret;
+/**
+ * Prepends inputPath to the PATH (for this action and future actions)
+ * @param inputPath
+ */
+function addPath(inputPath) {
+    const filePath = process.env['GITHUB_PATH'] || '';
+    if (filePath) {
+        file_command_1.issueCommand('PATH', inputPath);
+    }
+    else {
+        command_1.issueCommand('add-path', {}, inputPath);
+    }
+    process.env['PATH'] = `${inputPath}${path.delimiter}${process.env['PATH']}`;
+}
+exports.addPath = addPath;
+/**
+ * Gets the value of an input.  The value is also trimmed.
+ *
+ * @param     name     name of the input to get
+ * @param     options  optional. See InputOptions.
+ * @returns   string
+ */
+function getInput(name, options) {
+    const val = process.env[`INPUT_${name.replace(/ /g, '_').toUpperCase()}`] || '';
+    if (options && options.required && !val) {
+        throw new Error(`Input required and not supplied: ${name}`);
+    }
+    return val.trim();
+}
+exports.getInput = getInput;
+/**
+ * Sets the value of an output.
+ *
+ * @param     name     name of the output to set
+ * @param     value    value to store. Non-string values will be converted to a string via JSON.stringify
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function setOutput(name, value) {
+    command_1.issueCommand('set-output', { name }, value);
+}
+exports.setOutput = setOutput;
+/**
+ * Enables or disables the echoing of commands into stdout for the rest of the step.
+ * Echoing is disabled by default if ACTIONS_STEP_DEBUG is not set.
+ *
+ */
+function setCommandEcho(enabled) {
+    command_1.issue('echo', enabled ? 'on' : 'off');
+}
+exports.setCommandEcho = setCommandEcho;
+//-----------------------------------------------------------------------
+// Results
+//-----------------------------------------------------------------------
+/**
+ * Sets the action status to failed.
+ * When the action exits it will be with an exit code of 1
+ * @param message add error issue message
+ */
+function setFailed(message) {
+    process.exitCode = ExitCode.Failure;
+    error(message);
+}
+exports.setFailed = setFailed;
+//-----------------------------------------------------------------------
+// Logging Commands
+//-----------------------------------------------------------------------
+/**
+ * Gets whether Actions Step Debug is on or not
+ */
+function isDebug() {
+    return process.env['RUNNER_DEBUG'] === '1';
+}
+exports.isDebug = isDebug;
+/**
+ * Writes debug message to user log
+ * @param message debug message
+ */
+function debug(message) {
+    command_1.issueCommand('debug', {}, message);
+}
+exports.debug = debug;
+/**
+ * Adds an error issue
+ * @param message error issue message. Errors will be converted to string via toString()
+ */
+function error(message) {
+    command_1.issue('error', message instanceof Error ? message.toString() : message);
+}
+exports.error = error;
+/**
+ * Adds an warning issue
+ * @param message warning issue message. Errors will be converted to string via toString()
+ */
+function warning(message) {
+    command_1.issue('warning', message instanceof Error ? message.toString() : message);
+}
+exports.warning = warning;
+/**
+ * Writes info to log with console.log.
+ * @param message info message
+ */
+function info(message) {
+    process.stdout.write(message + os.EOL);
+}
+exports.info = info;
+/**
+ * Begin an output group.
+ *
+ * Output until the next `groupEnd` will be foldable in this group
+ *
+ * @param name The name of the output group
+ */
+function startGroup(name) {
+    command_1.issue('group', name);
+}
+exports.startGroup = startGroup;
+/**
+ * End an output group.
+ */
+function endGroup() {
+    command_1.issue('endgroup');
+}
+exports.endGroup = endGroup;
+/**
+ * Wrap an asynchronous function call in a group.
+ *
+ * Returns the same type as the function itself.
+ *
+ * @param name The name of the group
+ * @param fn The function to wrap in the group
+ */
+function group(name, fn) {
+    return __awaiter(this, void 0, void 0, function* () {
+        startGroup(name);
+        let result;
+        try {
+            result = yield fn();
+        }
+        finally {
+            endGroup();
+        }
+        return result;
+    });
+}
+exports.group = group;
+//-----------------------------------------------------------------------
+// Wrapper action state
+//-----------------------------------------------------------------------
+/**
+ * Saves state for current action, the state can only be retrieved by this action's post job execution.
+ *
+ * @param     name     name of the state to store
+ * @param     value    value to store. Non-string values will be converted to a string via JSON.stringify
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function saveState(name, value) {
+    command_1.issueCommand('save-state', { name }, value);
+}
+exports.saveState = saveState;
+/**
+ * Gets the value of an state set by this action's main execution.
+ *
+ * @param     name     name of the state to get
+ * @returns   string
+ */
+function getState(name) {
+    return process.env[`STATE_${name}`] || '';
+}
+exports.getState = getState;
+//# sourceMappingURL=core.js.map
 
+/***/ }),
 
-module.exports.Type                = __webpack_require__(861);
-module.exports.Schema              = __webpack_require__(411);
-module.exports.FAILSAFE_SCHEMA     = __webpack_require__(387);
-module.exports.JSON_SCHEMA         = __webpack_require__(176);
-module.exports.CORE_SCHEMA         = __webpack_require__(152);
-module.exports.DEFAULT_SAFE_SCHEMA = __webpack_require__(773);
-module.exports.DEFAULT_FULL_SCHEMA = __webpack_require__(930);
-module.exports.load                = loader.load;
-module.exports.loadAll             = loader.loadAll;
-module.exports.safeLoad            = loader.safeLoad;
-module.exports.safeLoadAll         = loader.safeLoadAll;
-module.exports.dump                = dumper.dump;
-module.exports.safeDump            = dumper.safeDump;
-module.exports.YAMLException       = __webpack_require__(984);
+/***/ 539:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
-// Deprecated schema names from JS-YAML 2.0.x
-module.exports.MINIMAL_SCHEMA = __webpack_require__(387);
-module.exports.SAFE_SCHEMA    = __webpack_require__(773);
-module.exports.DEFAULT_SCHEMA = __webpack_require__(930);
+"use strict";
 
-// Deprecated functions from JS-YAML 1.x.x
-module.exports.scan           = deprecated('scan');
-module.exports.parse          = deprecated('parse');
-module.exports.compose        = deprecated('compose');
-module.exports.addConstructor = deprecated('addConstructor');
+Object.defineProperty(exports, "__esModule", { value: true });
+const url = __webpack_require__(835);
+const http = __webpack_require__(605);
+const https = __webpack_require__(211);
+const pm = __webpack_require__(950);
+let tunnel;
+var HttpCodes;
+(function (HttpCodes) {
+    HttpCodes[HttpCodes["OK"] = 200] = "OK";
+    HttpCodes[HttpCodes["MultipleChoices"] = 300] = "MultipleChoices";
+    HttpCodes[HttpCodes["MovedPermanently"] = 301] = "MovedPermanently";
+    HttpCodes[HttpCodes["ResourceMoved"] = 302] = "ResourceMoved";
+    HttpCodes[HttpCodes["SeeOther"] = 303] = "SeeOther";
+    HttpCodes[HttpCodes["NotModified"] = 304] = "NotModified";
+    HttpCodes[HttpCodes["UseProxy"] = 305] = "UseProxy";
+    HttpCodes[HttpCodes["SwitchProxy"] = 306] = "SwitchProxy";
+    HttpCodes[HttpCodes["TemporaryRedirect"] = 307] = "TemporaryRedirect";
+    HttpCodes[HttpCodes["PermanentRedirect"] = 308] = "PermanentRedirect";
+    HttpCodes[HttpCodes["BadRequest"] = 400] = "BadRequest";
+    HttpCodes[HttpCodes["Unauthorized"] = 401] = "Unauthorized";
+    HttpCodes[HttpCodes["PaymentRequired"] = 402] = "PaymentRequired";
+    HttpCodes[HttpCodes["Forbidden"] = 403] = "Forbidden";
+    HttpCodes[HttpCodes["NotFound"] = 404] = "NotFound";
+    HttpCodes[HttpCodes["MethodNotAllowed"] = 405] = "MethodNotAllowed";
+    HttpCodes[HttpCodes["NotAcceptable"] = 406] = "NotAcceptable";
+    HttpCodes[HttpCodes["ProxyAuthenticationRequired"] = 407] = "ProxyAuthenticationRequired";
+    HttpCodes[HttpCodes["RequestTimeout"] = 408] = "RequestTimeout";
+    HttpCodes[HttpCodes["Conflict"] = 409] = "Conflict";
+    HttpCodes[HttpCodes["Gone"] = 410] = "Gone";
+    HttpCodes[HttpCodes["TooManyRequests"] = 429] = "TooManyRequests";
+    HttpCodes[HttpCodes["InternalServerError"] = 500] = "InternalServerError";
+    HttpCodes[HttpCodes["NotImplemented"] = 501] = "NotImplemented";
+    HttpCodes[HttpCodes["BadGateway"] = 502] = "BadGateway";
+    HttpCodes[HttpCodes["ServiceUnavailable"] = 503] = "ServiceUnavailable";
+    HttpCodes[HttpCodes["GatewayTimeout"] = 504] = "GatewayTimeout";
+})(HttpCodes = exports.HttpCodes || (exports.HttpCodes = {}));
+var Headers;
+(function (Headers) {
+    Headers["Accept"] = "accept";
+    Headers["ContentType"] = "content-type";
+})(Headers = exports.Headers || (exports.Headers = {}));
+var MediaTypes;
+(function (MediaTypes) {
+    MediaTypes["ApplicationJson"] = "application/json";
+})(MediaTypes = exports.MediaTypes || (exports.MediaTypes = {}));
+/**
+ * Returns the proxy URL, depending upon the supplied url and proxy environment variables.
+ * @param serverUrl  The server URL where the request will be sent. For example, https://api.github.com
+ */
+function getProxyUrl(serverUrl) {
+    let proxyUrl = pm.getProxyUrl(url.parse(serverUrl));
+    return proxyUrl ? proxyUrl.href : '';
+}
+exports.getProxyUrl = getProxyUrl;
+const HttpRedirectCodes = [
+    HttpCodes.MovedPermanently,
+    HttpCodes.ResourceMoved,
+    HttpCodes.SeeOther,
+    HttpCodes.TemporaryRedirect,
+    HttpCodes.PermanentRedirect
+];
+const HttpResponseRetryCodes = [
+    HttpCodes.BadGateway,
+    HttpCodes.ServiceUnavailable,
+    HttpCodes.GatewayTimeout
+];
+const RetryableHttpVerbs = ['OPTIONS', 'GET', 'DELETE', 'HEAD'];
+const ExponentialBackoffCeiling = 10;
+const ExponentialBackoffTimeSlice = 5;
+class HttpClientResponse {
+    constructor(message) {
+        this.message = message;
+    }
+    readBody() {
+        return new Promise(async (resolve, reject) => {
+            let output = Buffer.alloc(0);
+            this.message.on('data', (chunk) => {
+                output = Buffer.concat([output, chunk]);
+            });
+            this.message.on('end', () => {
+                resolve(output.toString());
+            });
+        });
+    }
+}
+exports.HttpClientResponse = HttpClientResponse;
+function isHttps(requestUrl) {
+    let parsedUrl = url.parse(requestUrl);
+    return parsedUrl.protocol === 'https:';
+}
+exports.isHttps = isHttps;
+class HttpClient {
+    constructor(userAgent, handlers, requestOptions) {
+        this._ignoreSslError = false;
+        this._allowRedirects = true;
+        this._allowRedirectDowngrade = false;
+        this._maxRedirects = 50;
+        this._allowRetries = false;
+        this._maxRetries = 1;
+        this._keepAlive = false;
+        this._disposed = false;
+        this.userAgent = userAgent;
+        this.handlers = handlers || [];
+        this.requestOptions = requestOptions;
+        if (requestOptions) {
+            if (requestOptions.ignoreSslError != null) {
+                this._ignoreSslError = requestOptions.ignoreSslError;
+            }
+            this._socketTimeout = requestOptions.socketTimeout;
+            if (requestOptions.allowRedirects != null) {
+                this._allowRedirects = requestOptions.allowRedirects;
+            }
+            if (requestOptions.allowRedirectDowngrade != null) {
+                this._allowRedirectDowngrade = requestOptions.allowRedirectDowngrade;
+            }
+            if (requestOptions.maxRedirects != null) {
+                this._maxRedirects = Math.max(requestOptions.maxRedirects, 0);
+            }
+            if (requestOptions.keepAlive != null) {
+                this._keepAlive = requestOptions.keepAlive;
+            }
+            if (requestOptions.allowRetries != null) {
+                this._allowRetries = requestOptions.allowRetries;
+            }
+            if (requestOptions.maxRetries != null) {
+                this._maxRetries = requestOptions.maxRetries;
+            }
+        }
+    }
+    options(requestUrl, additionalHeaders) {
+        return this.request('OPTIONS', requestUrl, null, additionalHeaders || {});
+    }
+    get(requestUrl, additionalHeaders) {
+        return this.request('GET', requestUrl, null, additionalHeaders || {});
+    }
+    del(requestUrl, additionalHeaders) {
+        return this.request('DELETE', requestUrl, null, additionalHeaders || {});
+    }
+    post(requestUrl, data, additionalHeaders) {
+        return this.request('POST', requestUrl, data, additionalHeaders || {});
+    }
+    patch(requestUrl, data, additionalHeaders) {
+        return this.request('PATCH', requestUrl, data, additionalHeaders || {});
+    }
+    put(requestUrl, data, additionalHeaders) {
+        return this.request('PUT', requestUrl, data, additionalHeaders || {});
+    }
+    head(requestUrl, additionalHeaders) {
+        return this.request('HEAD', requestUrl, null, additionalHeaders || {});
+    }
+    sendStream(verb, requestUrl, stream, additionalHeaders) {
+        return this.request(verb, requestUrl, stream, additionalHeaders);
+    }
+    /**
+     * Gets a typed object from an endpoint
+     * Be aware that not found returns a null.  Other errors (4xx, 5xx) reject the promise
+     */
+    async getJson(requestUrl, additionalHeaders = {}) {
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        let res = await this.get(requestUrl, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    async postJson(requestUrl, obj, additionalHeaders = {}) {
+        let data = JSON.stringify(obj, null, 2);
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
+        let res = await this.post(requestUrl, data, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    async putJson(requestUrl, obj, additionalHeaders = {}) {
+        let data = JSON.stringify(obj, null, 2);
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
+        let res = await this.put(requestUrl, data, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    async patchJson(requestUrl, obj, additionalHeaders = {}) {
+        let data = JSON.stringify(obj, null, 2);
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
+        let res = await this.patch(requestUrl, data, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    /**
+     * Makes a raw http request.
+     * All other methods such as get, post, patch, and request ultimately call this.
+     * Prefer get, del, post and patch
+     */
+    async request(verb, requestUrl, data, headers) {
+        if (this._disposed) {
+            throw new Error('Client has already been disposed.');
+        }
+        let parsedUrl = url.parse(requestUrl);
+        let info = this._prepareRequest(verb, parsedUrl, headers);
+        // Only perform retries on reads since writes may not be idempotent.
+        let maxTries = this._allowRetries && RetryableHttpVerbs.indexOf(verb) != -1
+            ? this._maxRetries + 1
+            : 1;
+        let numTries = 0;
+        let response;
+        while (numTries < maxTries) {
+            response = await this.requestRaw(info, data);
+            // Check if it's an authentication challenge
+            if (response &&
+                response.message &&
+                response.message.statusCode === HttpCodes.Unauthorized) {
+                let authenticationHandler;
+                for (let i = 0; i < this.handlers.length; i++) {
+                    if (this.handlers[i].canHandleAuthentication(response)) {
+                        authenticationHandler = this.handlers[i];
+                        break;
+                    }
+                }
+                if (authenticationHandler) {
+                    return authenticationHandler.handleAuthentication(this, info, data);
+                }
+                else {
+                    // We have received an unauthorized response but have no handlers to handle it.
+                    // Let the response return to the caller.
+                    return response;
+                }
+            }
+            let redirectsRemaining = this._maxRedirects;
+            while (HttpRedirectCodes.indexOf(response.message.statusCode) != -1 &&
+                this._allowRedirects &&
+                redirectsRemaining > 0) {
+                const redirectUrl = response.message.headers['location'];
+                if (!redirectUrl) {
+                    // if there's no location to redirect to, we won't
+                    break;
+                }
+                let parsedRedirectUrl = url.parse(redirectUrl);
+                if (parsedUrl.protocol == 'https:' &&
+                    parsedUrl.protocol != parsedRedirectUrl.protocol &&
+                    !this._allowRedirectDowngrade) {
+                    throw new Error('Redirect from HTTPS to HTTP protocol. This downgrade is not allowed for security reasons. If you want to allow this behavior, set the allowRedirectDowngrade option to true.');
+                }
+                // we need to finish reading the response before reassigning response
+                // which will leak the open socket.
+                await response.readBody();
+                // strip authorization header if redirected to a different hostname
+                if (parsedRedirectUrl.hostname !== parsedUrl.hostname) {
+                    for (let header in headers) {
+                        // header names are case insensitive
+                        if (header.toLowerCase() === 'authorization') {
+                            delete headers[header];
+                        }
+                    }
+                }
+                // let's make the request with the new redirectUrl
+                info = this._prepareRequest(verb, parsedRedirectUrl, headers);
+                response = await this.requestRaw(info, data);
+                redirectsRemaining--;
+            }
+            if (HttpResponseRetryCodes.indexOf(response.message.statusCode) == -1) {
+                // If not a retry code, return immediately instead of retrying
+                return response;
+            }
+            numTries += 1;
+            if (numTries < maxTries) {
+                await response.readBody();
+                await this._performExponentialBackoff(numTries);
+            }
+        }
+        return response;
+    }
+    /**
+     * Needs to be called if keepAlive is set to true in request options.
+     */
+    dispose() {
+        if (this._agent) {
+            this._agent.destroy();
+        }
+        this._disposed = true;
+    }
+    /**
+     * Raw request.
+     * @param info
+     * @param data
+     */
+    requestRaw(info, data) {
+        return new Promise((resolve, reject) => {
+            let callbackForResult = function (err, res) {
+                if (err) {
+                    reject(err);
+                }
+                resolve(res);
+            };
+            this.requestRawWithCallback(info, data, callbackForResult);
+        });
+    }
+    /**
+     * Raw request with callback.
+     * @param info
+     * @param data
+     * @param onResult
+     */
+    requestRawWithCallback(info, data, onResult) {
+        let socket;
+        if (typeof data === 'string') {
+            info.options.headers['Content-Length'] = Buffer.byteLength(data, 'utf8');
+        }
+        let callbackCalled = false;
+        let handleResult = (err, res) => {
+            if (!callbackCalled) {
+                callbackCalled = true;
+                onResult(err, res);
+            }
+        };
+        let req = info.httpModule.request(info.options, (msg) => {
+            let res = new HttpClientResponse(msg);
+            handleResult(null, res);
+        });
+        req.on('socket', sock => {
+            socket = sock;
+        });
+        // If we ever get disconnected, we want the socket to timeout eventually
+        req.setTimeout(this._socketTimeout || 3 * 60000, () => {
+            if (socket) {
+                socket.end();
+            }
+            handleResult(new Error('Request timeout: ' + info.options.path), null);
+        });
+        req.on('error', function (err) {
+            // err has statusCode property
+            // res should have headers
+            handleResult(err, null);
+        });
+        if (data && typeof data === 'string') {
+            req.write(data, 'utf8');
+        }
+        if (data && typeof data !== 'string') {
+            data.on('close', function () {
+                req.end();
+            });
+            data.pipe(req);
+        }
+        else {
+            req.end();
+        }
+    }
+    /**
+     * Gets an http agent. This function is useful when you need an http agent that handles
+     * routing through a proxy server - depending upon the url and proxy environment variables.
+     * @param serverUrl  The server URL where the request will be sent. For example, https://api.github.com
+     */
+    getAgent(serverUrl) {
+        let parsedUrl = url.parse(serverUrl);
+        return this._getAgent(parsedUrl);
+    }
+    _prepareRequest(method, requestUrl, headers) {
+        const info = {};
+        info.parsedUrl = requestUrl;
+        const usingSsl = info.parsedUrl.protocol === 'https:';
+        info.httpModule = usingSsl ? https : http;
+        const defaultPort = usingSsl ? 443 : 80;
+        info.options = {};
+        info.options.host = info.parsedUrl.hostname;
+        info.options.port = info.parsedUrl.port
+            ? parseInt(info.parsedUrl.port)
+            : defaultPort;
+        info.options.path =
+            (info.parsedUrl.pathname || '') + (info.parsedUrl.search || '');
+        info.options.method = method;
+        info.options.headers = this._mergeHeaders(headers);
+        if (this.userAgent != null) {
+            info.options.headers['user-agent'] = this.userAgent;
+        }
+        info.options.agent = this._getAgent(info.parsedUrl);
+        // gives handlers an opportunity to participate
+        if (this.handlers) {
+            this.handlers.forEach(handler => {
+                handler.prepareRequest(info.options);
+            });
+        }
+        return info;
+    }
+    _mergeHeaders(headers) {
+        const lowercaseKeys = obj => Object.keys(obj).reduce((c, k) => ((c[k.toLowerCase()] = obj[k]), c), {});
+        if (this.requestOptions && this.requestOptions.headers) {
+            return Object.assign({}, lowercaseKeys(this.requestOptions.headers), lowercaseKeys(headers));
+        }
+        return lowercaseKeys(headers || {});
+    }
+    _getExistingOrDefaultHeader(additionalHeaders, header, _default) {
+        const lowercaseKeys = obj => Object.keys(obj).reduce((c, k) => ((c[k.toLowerCase()] = obj[k]), c), {});
+        let clientHeader;
+        if (this.requestOptions && this.requestOptions.headers) {
+            clientHeader = lowercaseKeys(this.requestOptions.headers)[header];
+        }
+        return additionalHeaders[header] || clientHeader || _default;
+    }
+    _getAgent(parsedUrl) {
+        let agent;
+        let proxyUrl = pm.getProxyUrl(parsedUrl);
+        let useProxy = proxyUrl && proxyUrl.hostname;
+        if (this._keepAlive && useProxy) {
+            agent = this._proxyAgent;
+        }
+        if (this._keepAlive && !useProxy) {
+            agent = this._agent;
+        }
+        // if agent is already assigned use that agent.
+        if (!!agent) {
+            return agent;
+        }
+        const usingSsl = parsedUrl.protocol === 'https:';
+        let maxSockets = 100;
+        if (!!this.requestOptions) {
+            maxSockets = this.requestOptions.maxSockets || http.globalAgent.maxSockets;
+        }
+        if (useProxy) {
+            // If using proxy, need tunnel
+            if (!tunnel) {
+                tunnel = __webpack_require__(413);
+            }
+            const agentOptions = {
+                maxSockets: maxSockets,
+                keepAlive: this._keepAlive,
+                proxy: {
+                    proxyAuth: proxyUrl.auth,
+                    host: proxyUrl.hostname,
+                    port: proxyUrl.port
+                }
+            };
+            let tunnelAgent;
+            const overHttps = proxyUrl.protocol === 'https:';
+            if (usingSsl) {
+                tunnelAgent = overHttps ? tunnel.httpsOverHttps : tunnel.httpsOverHttp;
+            }
+            else {
+                tunnelAgent = overHttps ? tunnel.httpOverHttps : tunnel.httpOverHttp;
+            }
+            agent = tunnelAgent(agentOptions);
+            this._proxyAgent = agent;
+        }
+        // if reusing agent across request and tunneling agent isn't assigned create a new agent
+        if (this._keepAlive && !agent) {
+            const options = { keepAlive: this._keepAlive, maxSockets: maxSockets };
+            agent = usingSsl ? new https.Agent(options) : new http.Agent(options);
+            this._agent = agent;
+        }
+        // if not using private agent and tunnel agent isn't setup then use global agent
+        if (!agent) {
+            agent = usingSsl ? https.globalAgent : http.globalAgent;
+        }
+        if (usingSsl && this._ignoreSslError) {
+            // we don't want to set NODE_TLS_REJECT_UNAUTHORIZED=0 since that will affect request for entire process
+            // http.RequestOptions doesn't expose a way to modify RequestOptions.agent.options
+            // we have to cast it to any and change it directly
+            agent.options = Object.assign(agent.options || {}, {
+                rejectUnauthorized: false
+            });
+        }
+        return agent;
+    }
+    _performExponentialBackoff(retryNumber) {
+        retryNumber = Math.min(ExponentialBackoffCeiling, retryNumber);
+        const ms = ExponentialBackoffTimeSlice * Math.pow(2, retryNumber);
+        return new Promise(resolve => setTimeout(() => resolve(), ms));
+    }
+    static dateTimeDeserializer(key, value) {
+        if (typeof value === 'string') {
+            let a = new Date(value);
+            if (!isNaN(a.valueOf())) {
+                return a;
+            }
+        }
+        return value;
+    }
+    async _processResponse(res, options) {
+        return new Promise(async (resolve, reject) => {
+            const statusCode = res.message.statusCode;
+            const response = {
+                statusCode: statusCode,
+                result: null,
+                headers: {}
+            };
+            // not found leads to null obj returned
+            if (statusCode == HttpCodes.NotFound) {
+                resolve(response);
+            }
+            let obj;
+            let contents;
+            // get the result from the body
+            try {
+                contents = await res.readBody();
+                if (contents && contents.length > 0) {
+                    if (options && options.deserializeDates) {
+                        obj = JSON.parse(contents, HttpClient.dateTimeDeserializer);
+                    }
+                    else {
+                        obj = JSON.parse(contents);
+                    }
+                    response.result = obj;
+                }
+                response.headers = res.message.headers;
+            }
+            catch (err) {
+                // Invalid resource (contents not json);  leaving result obj null
+            }
+            // note that 3xx redirects are handled by the http layer.
+            if (statusCode > 299) {
+                let msg;
+                // if exception/error in body, attempt to get better error
+                if (obj && obj.message) {
+                    msg = obj.message;
+                }
+                else if (contents && contents.length > 0) {
+                    // it may be the case that the exception is in the body message as string
+                    msg = contents;
+                }
+                else {
+                    msg = 'Failed request: (' + statusCode + ')';
+                }
+                let err = new Error(msg);
+                // attach statusCode and body obj (if available) to the error object
+                err['statusCode'] = statusCode;
+                if (response.result) {
+                    err['result'] = response.result;
+                }
+                reject(err);
+            }
+            else {
+                resolve(response);
+            }
+        });
+    }
+}
+exports.HttpClient = HttpClient;
 
 
 /***/ }),
 
-/***/ 141:
+/***/ 556:
+/***/ (function(module) {
+
+"use strict";
+// YAML error class. http://stackoverflow.com/questions/8458984
+//
+
+
+function YAMLException(reason, mark) {
+  // Super constructor
+  Error.call(this);
+
+  this.name = 'YAMLException';
+  this.reason = reason;
+  this.mark = mark;
+  this.message = (this.reason || '(unknown reason)') + (this.mark ? ' ' + this.mark.toString() : '');
+
+  // Include stack trace in error object
+  if (Error.captureStackTrace) {
+    // Chrome and NodeJS
+    Error.captureStackTrace(this, this.constructor);
+  } else {
+    // FF, IE 10+ and Safari 6+. Fallback for others
+    this.stack = (new Error()).stack || '';
+  }
+}
+
+
+// Inherit from Error
+YAMLException.prototype = Object.create(Error.prototype);
+YAMLException.prototype.constructor = YAMLException;
+
+
+YAMLException.prototype.toString = function toString(compact) {
+  var result = this.name + ': ';
+
+  result += this.reason || '(unknown reason)';
+
+  if (!compact && this.mark) {
+    result += ' ' + this.mark.toString();
+  }
+
+  return result;
+};
+
+
+module.exports = YAMLException;
+
+
+/***/ }),
+
+/***/ 574:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
 
-/*eslint-disable no-bitwise*/
+var Type = __webpack_require__(945);
 
-var NodeBuffer;
-
-try {
-  // A trick for browserified version, to not include `Buffer` shim
-  var _require = require;
-  NodeBuffer = _require('buffer').Buffer;
-} catch (__) {}
-
-var Type       = __webpack_require__(861);
-
-
-// [ 64, 65, 66 ] -> [ padding, CR, LF ]
-var BASE64_MAP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r';
-
-
-function resolveYamlBinary(data) {
-  if (data === null) return false;
-
-  var code, idx, bitlen = 0, max = data.length, map = BASE64_MAP;
-
-  // Convert one by one.
-  for (idx = 0; idx < max; idx++) {
-    code = map.indexOf(data.charAt(idx));
-
-    // Skip CR/LF
-    if (code > 64) continue;
-
-    // Fail on illegal characters
-    if (code < 0) return false;
-
-    bitlen += 6;
-  }
-
-  // If there are any bits left, source was corrupted
-  return (bitlen % 8) === 0;
-}
-
-function constructYamlBinary(data) {
-  var idx, tailbits,
-      input = data.replace(/[\r\n=]/g, ''), // remove CR/LF & padding to simplify scan
-      max = input.length,
-      map = BASE64_MAP,
-      bits = 0,
-      result = [];
-
-  // Collect by 6*4 bits (3 bytes)
-
-  for (idx = 0; idx < max; idx++) {
-    if ((idx % 4 === 0) && idx) {
-      result.push((bits >> 16) & 0xFF);
-      result.push((bits >> 8) & 0xFF);
-      result.push(bits & 0xFF);
-    }
-
-    bits = (bits << 6) | map.indexOf(input.charAt(idx));
-  }
-
-  // Dump tail
-
-  tailbits = (max % 4) * 6;
-
-  if (tailbits === 0) {
-    result.push((bits >> 16) & 0xFF);
-    result.push((bits >> 8) & 0xFF);
-    result.push(bits & 0xFF);
-  } else if (tailbits === 18) {
-    result.push((bits >> 10) & 0xFF);
-    result.push((bits >> 2) & 0xFF);
-  } else if (tailbits === 12) {
-    result.push((bits >> 4) & 0xFF);
-  }
-
-  // Wrap into Buffer for NodeJS and leave Array for browser
-  if (NodeBuffer) {
-    // Support node 6.+ Buffer API when available
-    return NodeBuffer.from ? NodeBuffer.from(result) : new NodeBuffer(result);
-  }
-
-  return result;
-}
-
-function representYamlBinary(object /*, style*/) {
-  var result = '', bits = 0, idx, tail,
-      max = object.length,
-      map = BASE64_MAP;
-
-  // Convert every three bytes to 4 ASCII characters.
-
-  for (idx = 0; idx < max; idx++) {
-    if ((idx % 3 === 0) && idx) {
-      result += map[(bits >> 18) & 0x3F];
-      result += map[(bits >> 12) & 0x3F];
-      result += map[(bits >> 6) & 0x3F];
-      result += map[bits & 0x3F];
-    }
-
-    bits = (bits << 8) + object[idx];
-  }
-
-  // Dump tail
-
-  tail = max % 3;
-
-  if (tail === 0) {
-    result += map[(bits >> 18) & 0x3F];
-    result += map[(bits >> 12) & 0x3F];
-    result += map[(bits >> 6) & 0x3F];
-    result += map[bits & 0x3F];
-  } else if (tail === 2) {
-    result += map[(bits >> 10) & 0x3F];
-    result += map[(bits >> 4) & 0x3F];
-    result += map[(bits << 2) & 0x3F];
-    result += map[64];
-  } else if (tail === 1) {
-    result += map[(bits >> 2) & 0x3F];
-    result += map[(bits << 4) & 0x3F];
-    result += map[64];
-    result += map[64];
-  }
-
-  return result;
-}
-
-function isBinary(object) {
-  return NodeBuffer && NodeBuffer.isBuffer(object);
-}
-
-module.exports = new Type('tag:yaml.org,2002:binary', {
+module.exports = new Type('tag:yaml.org,2002:str', {
   kind: 'scalar',
-  resolve: resolveYamlBinary,
-  construct: constructYamlBinary,
-  predicate: isBinary,
-  represent: representYamlBinary
+  construct: function (data) { return data !== null ? data : ''; }
 });
 
 
 /***/ }),
 
-/***/ 152:
+/***/ 581:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+// Standard YAML's Failsafe schema.
+// http://www.yaml.org/spec/1.2/spec.html#id2802346
+
+
+
+
+
+var Schema = __webpack_require__(43);
+
+
+module.exports = new Schema({
+  explicit: [
+    __webpack_require__(574),
+    __webpack_require__(921),
+    __webpack_require__(988)
+  ]
+});
+
+
+/***/ }),
+
+/***/ 592:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.sendMetrics = exports.sendEvents = exports.getClient = void 0;
+const core = __importStar(__webpack_require__(470));
+const httpm = __importStar(__webpack_require__(539));
+function getClient(token) {
+    return new httpm.HttpClient('sfx-http-client', [], {
+        headers: {
+            'X-SF-TOKEN': token,
+            'Content-Type': 'application/json'
+        }
+    });
+}
+exports.getClient = getClient;
+function sendEvents(apiURL, token, events) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const http = getClient(token);
+        core.debug(`About to send ${events.length} events`);
+        const res = yield http.post(`${apiURL}/v2/event`, JSON.stringify(events));
+        if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
+            core.error(`HTTP request failed: ${res.message.statusMessage}`);
+            throw new Error(`Failed to send events`);
+        }
+    });
+}
+exports.sendEvents = sendEvents;
+function sendMetrics(apiURL, apiKey, metrics) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const http = getClient(apiKey);
+        const dimensions = `
+    "dimensions": {
+      "repo": "${process.env['GITHUB_REPOSITORY']}",
+      "source": "github_actions"
+    }
+  `;
+        const jsonPayload = `{
+    "counter": [
+      ${metrics
+            .filter(metric => metric.type == 'counter')
+            .map(metric => `{
+            "metric": "${metric.name}",
+            "value": ${metric.value},
+            ${dimensions}
+          }`)
+            .join(',')}
+    ],
+    "gauge": [
+      ${metrics
+            .filter(metric => metric.type == 'gauge')
+            .map(metric => `{
+            "metric": "${metric.name}",
+            "value": ${metric.value},
+            ${dimensions}
+          }`)
+            .join(',')}
+    ],
+    "cumulative_counter": [
+      ${metrics
+            .filter(metric => metric.type == 'cumulative_counter')
+            .map(metric => `{
+            "metric": "${metric.name}",
+            "value": ${metric.value},
+            ${dimensions}
+          }`)
+            .join(',')}
+    ]
+  }`;
+        core.debug(`made jsonpayload`);
+        core.debug(`About to send ${metrics.length} metrics`);
+        const res = yield http.post(`${apiURL}/v2/datapoint`, jsonPayload);
+        console.log(yield res.readBody());
+        if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
+            throw new Error(`HTTP request failed: ${res.message.statusMessage}`);
+        }
+    });
+}
+exports.sendMetrics = sendMetrics;
+
+
+/***/ }),
+
+/***/ 605:
+/***/ (function(module) {
+
+module.exports = require("http");
+
+/***/ }),
+
+/***/ 611:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
@@ -2237,441 +3990,39 @@ module.exports = new Type('tag:yaml.org,2002:binary', {
 
 
 
-var Schema = __webpack_require__(411);
+var Schema = __webpack_require__(43);
 
 
 module.exports = new Schema({
   include: [
-    __webpack_require__(176)
+    __webpack_require__(23)
   ]
 });
 
 
 /***/ }),
 
-/***/ 162:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-
-var Type = __webpack_require__(861);
-
-module.exports = new Type('tag:yaml.org,2002:seq', {
-  kind: 'sequence',
-  construct: function (data) { return data !== null ? data : []; }
-});
-
-
-/***/ }),
-
-/***/ 176:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-// Standard YAML's JSON schema.
-// http://www.yaml.org/spec/1.2/spec.html#id2803231
-//
-// NOTE: JS-YAML does not support schema-specific tag resolution restrictions.
-// So, this schema is not such strict as defined in the YAML specification.
-// It allows numbers in binary notaion, use `Null` and `NULL` as `null`, etc.
-
-
-
-
-
-var Schema = __webpack_require__(411);
-
-
-module.exports = new Schema({
-  include: [
-    __webpack_require__(387)
-  ],
-  implicit: [
-    __webpack_require__(30),
-    __webpack_require__(914),
-    __webpack_require__(690),
-    __webpack_require__(28)
-  ]
-});
-
-
-/***/ }),
-
-/***/ 191:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-// For internal use, subject to change.
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-// We use any as a valid input type
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const fs = __importStar(__webpack_require__(747));
-const os = __importStar(__webpack_require__(87));
-const utils_1 = __webpack_require__(774);
-function issueCommand(command, message) {
-    const filePath = process.env[`GITHUB_${command}`];
-    if (!filePath) {
-        throw new Error(`Unable to find environment variable for file command ${command}`);
-    }
-    if (!fs.existsSync(filePath)) {
-        throw new Error(`Missing file at path: ${filePath}`);
-    }
-    fs.appendFileSync(filePath, `${utils_1.toCommandValue(message)}${os.EOL}`, {
-        encoding: 'utf8'
-    });
-}
-exports.issueCommand = issueCommand;
-//# sourceMappingURL=file-command.js.map
-
-/***/ }),
-
-/***/ 204:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-
-var esprima;
-
-// Browserified version does not have esprima
-//
-// 1. For node.js just require module as deps
-// 2. For browser try to require mudule via external AMD system.
-//    If not found - try to fallback to window.esprima. If not
-//    found too - then fail to parse.
-//
-try {
-  // workaround to exclude package from browserify list.
-  var _require = require;
-  esprima = _require('esprima');
-} catch (_) {
-  /* eslint-disable no-redeclare */
-  /* global window */
-  if (typeof window !== 'undefined') esprima = window.esprima;
-}
-
-var Type = __webpack_require__(861);
-
-function resolveJavascriptFunction(data) {
-  if (data === null) return false;
-
-  try {
-    var source = '(' + data + ')',
-        ast    = esprima.parse(source, { range: true });
-
-    if (ast.type                    !== 'Program'             ||
-        ast.body.length             !== 1                     ||
-        ast.body[0].type            !== 'ExpressionStatement' ||
-        (ast.body[0].expression.type !== 'ArrowFunctionExpression' &&
-          ast.body[0].expression.type !== 'FunctionExpression')) {
-      return false;
-    }
-
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
-
-function constructJavascriptFunction(data) {
-  /*jslint evil:true*/
-
-  var source = '(' + data + ')',
-      ast    = esprima.parse(source, { range: true }),
-      params = [],
-      body;
-
-  if (ast.type                    !== 'Program'             ||
-      ast.body.length             !== 1                     ||
-      ast.body[0].type            !== 'ExpressionStatement' ||
-      (ast.body[0].expression.type !== 'ArrowFunctionExpression' &&
-        ast.body[0].expression.type !== 'FunctionExpression')) {
-    throw new Error('Failed to resolve function');
-  }
-
-  ast.body[0].expression.params.forEach(function (param) {
-    params.push(param.name);
-  });
-
-  body = ast.body[0].expression.body.range;
-
-  // Esprima's ranges include the first '{' and the last '}' characters on
-  // function expressions. So cut them out.
-  if (ast.body[0].expression.body.type === 'BlockStatement') {
-    /*eslint-disable no-new-func*/
-    return new Function(params, source.slice(body[0] + 1, body[1] - 1));
-  }
-  // ES6 arrow functions can omit the BlockStatement. In that case, just return
-  // the body.
-  /*eslint-disable no-new-func*/
-  return new Function(params, 'return ' + source.slice(body[0], body[1]));
-}
-
-function representJavascriptFunction(object /*, style*/) {
-  return object.toString();
-}
-
-function isFunction(object) {
-  return Object.prototype.toString.call(object) === '[object Function]';
-}
-
-module.exports = new Type('tag:yaml.org,2002:js/function', {
-  kind: 'scalar',
-  resolve: resolveJavascriptFunction,
-  construct: constructJavascriptFunction,
-  predicate: isFunction,
-  represent: representJavascriptFunction
-});
-
-
-/***/ }),
-
-/***/ 211:
+/***/ 614:
 /***/ (function(module) {
 
-module.exports = require("https");
+module.exports = require("events");
 
 /***/ }),
 
-/***/ 256:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-
-var Type = __webpack_require__(861);
-
-module.exports = new Type('tag:yaml.org,2002:str', {
-  kind: 'scalar',
-  construct: function (data) { return data !== null ? data : ''; }
-});
-
-
-/***/ }),
-
-/***/ 259:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-module.exports = __webpack_require__(812);
-
-
-/***/ }),
-
-/***/ 280:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-
-
-var yaml = __webpack_require__(112);
-
-
-module.exports = yaml;
-
-
-/***/ }),
-
-/***/ 311:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-
-var Type = __webpack_require__(861);
-
-function resolveYamlMerge(data) {
-  return data === '<<' || data === null;
-}
-
-module.exports = new Type('tag:yaml.org,2002:merge', {
-  kind: 'scalar',
-  resolve: resolveYamlMerge
-});
-
-
-/***/ }),
-
-/***/ 357:
+/***/ 622:
 /***/ (function(module) {
 
-module.exports = require("assert");
+module.exports = require("path");
 
 /***/ }),
 
-/***/ 365:
+/***/ 629:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
 
-var Type = __webpack_require__(861);
-
-module.exports = new Type('tag:yaml.org,2002:map', {
-  kind: 'mapping',
-  construct: function (data) { return data !== null ? data : {}; }
-});
-
-
-/***/ }),
-
-/***/ 387:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-// Standard YAML's Failsafe schema.
-// http://www.yaml.org/spec/1.2/spec.html#id2802346
-
-
-
-
-
-var Schema = __webpack_require__(411);
-
-
-module.exports = new Schema({
-  explicit: [
-    __webpack_require__(256),
-    __webpack_require__(162),
-    __webpack_require__(365)
-  ]
-});
-
-
-/***/ }),
-
-/***/ 411:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-
-/*eslint-disable max-len*/
-
-var common        = __webpack_require__(557);
-var YAMLException = __webpack_require__(984);
-var Type          = __webpack_require__(861);
-
-
-function compileList(schema, name, result) {
-  var exclude = [];
-
-  schema.include.forEach(function (includedSchema) {
-    result = compileList(includedSchema, name, result);
-  });
-
-  schema[name].forEach(function (currentType) {
-    result.forEach(function (previousType, previousIndex) {
-      if (previousType.tag === currentType.tag && previousType.kind === currentType.kind) {
-        exclude.push(previousIndex);
-      }
-    });
-
-    result.push(currentType);
-  });
-
-  return result.filter(function (type, index) {
-    return exclude.indexOf(index) === -1;
-  });
-}
-
-
-function compileMap(/* lists... */) {
-  var result = {
-        scalar: {},
-        sequence: {},
-        mapping: {},
-        fallback: {}
-      }, index, length;
-
-  function collectType(type) {
-    result[type.kind][type.tag] = result['fallback'][type.tag] = type;
-  }
-
-  for (index = 0, length = arguments.length; index < length; index += 1) {
-    arguments[index].forEach(collectType);
-  }
-  return result;
-}
-
-
-function Schema(definition) {
-  this.include  = definition.include  || [];
-  this.implicit = definition.implicit || [];
-  this.explicit = definition.explicit || [];
-
-  this.implicit.forEach(function (type) {
-    if (type.loadKind && type.loadKind !== 'scalar') {
-      throw new YAMLException('There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.');
-    }
-  });
-
-  this.compiledImplicit = compileList(this, 'implicit', []);
-  this.compiledExplicit = compileList(this, 'explicit', []);
-  this.compiledTypeMap  = compileMap(this.compiledImplicit, this.compiledExplicit);
-}
-
-
-Schema.DEFAULT = null;
-
-
-Schema.create = function createSchema() {
-  var schemas, types;
-
-  switch (arguments.length) {
-    case 1:
-      schemas = Schema.DEFAULT;
-      types = arguments[0];
-      break;
-
-    case 2:
-      schemas = arguments[0];
-      types = arguments[1];
-      break;
-
-    default:
-      throw new YAMLException('Wrong number of arguments for Schema.create function');
-  }
-
-  schemas = common.toArray(schemas);
-  types = common.toArray(types);
-
-  if (!schemas.every(function (schema) { return schema instanceof Schema; })) {
-    throw new YAMLException('Specified list of super schemas (or a single Schema object) contains a non-Schema object.');
-  }
-
-  if (!types.every(function (type) { return type instanceof Type; })) {
-    throw new YAMLException('Specified list of YAML types (or a single Type object) contains a non-Type object.');
-  }
-
-  return new Schema({
-    include: schemas,
-    explicit: types
-  });
-};
-
-
-module.exports = Schema;
-
-
-/***/ }),
-
-/***/ 418:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-
-var Type = __webpack_require__(861);
+var Type = __webpack_require__(945);
 
 function resolveJavascriptRegExp(data) {
   if (data === null) return false;
@@ -2733,218 +4084,6 @@ module.exports = new Type('tag:yaml.org,2002:js/regexp', {
 
 /***/ }),
 
-/***/ 557:
-/***/ (function(module) {
-
-"use strict";
-
-
-
-function isNothing(subject) {
-  return (typeof subject === 'undefined') || (subject === null);
-}
-
-
-function isObject(subject) {
-  return (typeof subject === 'object') && (subject !== null);
-}
-
-
-function toArray(sequence) {
-  if (Array.isArray(sequence)) return sequence;
-  else if (isNothing(sequence)) return [];
-
-  return [ sequence ];
-}
-
-
-function extend(target, source) {
-  var index, length, key, sourceKeys;
-
-  if (source) {
-    sourceKeys = Object.keys(source);
-
-    for (index = 0, length = sourceKeys.length; index < length; index += 1) {
-      key = sourceKeys[index];
-      target[key] = source[key];
-    }
-  }
-
-  return target;
-}
-
-
-function repeat(string, count) {
-  var result = '', cycle;
-
-  for (cycle = 0; cycle < count; cycle += 1) {
-    result += string;
-  }
-
-  return result;
-}
-
-
-function isNegativeZero(number) {
-  return (number === 0) && (Number.NEGATIVE_INFINITY === 1 / number);
-}
-
-
-module.exports.isNothing      = isNothing;
-module.exports.isObject       = isObject;
-module.exports.toArray        = toArray;
-module.exports.repeat         = repeat;
-module.exports.isNegativeZero = isNegativeZero;
-module.exports.extend         = extend;
-
-
-/***/ }),
-
-/***/ 605:
-/***/ (function(module) {
-
-module.exports = require("http");
-
-/***/ }),
-
-/***/ 607:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendMetrics = exports.sendEvents = exports.getClient = void 0;
-const core = __importStar(__webpack_require__(872));
-const httpm = __importStar(__webpack_require__(999));
-function getClient(token) {
-    return new httpm.HttpClient('sfx-http-client', [], {
-        headers: {
-            'X-SF-TOKEN': token,
-            'Content-Type': 'application/json'
-        }
-    });
-}
-exports.getClient = getClient;
-function sendEvents(apiURL, token, events) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const http = getClient(token);
-        core.debug(`About to send ${events.length} events`);
-        const res = yield http.post(`${apiURL}/v2/event`, JSON.stringify(events));
-        if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-            core.error(`HTTP request failed: ${res.message.statusMessage}`);
-            throw new Error(`Failed to send events`);
-        }
-    });
-}
-exports.sendEvents = sendEvents;
-function sendMetrics(apiURL, apiKey, metrics) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const http = getClient(apiKey);
-        const dimensions = `
-    "dimensions": {
-      "repo": "${process.env['GITHUB_REPOSITORY']}",
-      "source": "github_actions"
-    }
-  `;
-        const jsonPayload = `{
-    "counter": [
-      ${metrics
-            .filter(metric => metric.type == 'counter')
-            .map(metric => `{
-            "metric": "${metric.name}",
-            "value": ${metric.value},
-            ${dimensions}
-          }`).join(",")}
-    ],
-    "gauge": [
-      ${metrics
-            .filter(metric => metric.type == 'gauge')
-            .map(metric => `{
-            "metric": "${metric.name}",
-            "value": ${metric.value},
-            ${dimensions}
-          }`).join(",")}
-    ],
-    "cumulative_counter": [
-      ${metrics
-            .filter(metric => metric.type == 'cumulative_counter')
-            .map(metric => `{
-            "metric": "${metric.name}",
-            "value": ${metric.value},
-            ${dimensions}
-          }`).join(",")}
-    ]
-  }`;
-        core.debug(`made jsonpayload`);
-        // build series payload containing our metrics
-        // for (const m of metrics) {
-        //   s.series.push({
-        //     type: m.type,
-        //     value: [[m.value]],
-        //     name: m.type
-        //   })
-        // }
-        // POST data
-        core.debug(`About to send ${metrics.length} metrics`);
-        const res = yield http.post(`${apiURL}/v2/datapoint`, jsonPayload);
-        console.log(jsonPayload);
-        console.log(yield res.readBody());
-        if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-            throw new Error(`HTTP request failed: ${res.message.statusMessage}`);
-        }
-    });
-}
-exports.sendMetrics = sendMetrics;
-
-
-/***/ }),
-
-/***/ 614:
-/***/ (function(module) {
-
-module.exports = require("events");
-
-/***/ }),
-
-/***/ 622:
-/***/ (function(module) {
-
-module.exports = require("path");
-
-/***/ }),
-
 /***/ 631:
 /***/ (function(module) {
 
@@ -2952,131 +4091,22 @@ module.exports = require("net");
 
 /***/ }),
 
-/***/ 651:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
+/***/ 633:
+/***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
-Object.defineProperty(exports, "__esModule", { value: true });
-const url = __webpack_require__(835);
-function getProxyUrl(reqUrl) {
-    let usingSsl = reqUrl.protocol === 'https:';
-    let proxyUrl;
-    if (checkBypass(reqUrl)) {
-        return proxyUrl;
-    }
-    let proxyVar;
-    if (usingSsl) {
-        proxyVar = process.env['https_proxy'] || process.env['HTTPS_PROXY'];
-    }
-    else {
-        proxyVar = process.env['http_proxy'] || process.env['HTTP_PROXY'];
-    }
-    if (proxyVar) {
-        proxyUrl = url.parse(proxyVar);
-    }
-    return proxyUrl;
+
+var Type = __webpack_require__(945);
+
+function resolveYamlMerge(data) {
+  return data === '<<' || data === null;
 }
-exports.getProxyUrl = getProxyUrl;
-function checkBypass(reqUrl) {
-    if (!reqUrl.hostname) {
-        return false;
-    }
-    let noProxy = process.env['no_proxy'] || process.env['NO_PROXY'] || '';
-    if (!noProxy) {
-        return false;
-    }
-    // Determine the request port
-    let reqPort;
-    if (reqUrl.port) {
-        reqPort = Number(reqUrl.port);
-    }
-    else if (reqUrl.protocol === 'http:') {
-        reqPort = 80;
-    }
-    else if (reqUrl.protocol === 'https:') {
-        reqPort = 443;
-    }
-    // Format the request hostname and hostname with port
-    let upperReqHosts = [reqUrl.hostname.toUpperCase()];
-    if (typeof reqPort === 'number') {
-        upperReqHosts.push(`${upperReqHosts[0]}:${reqPort}`);
-    }
-    // Compare request host against noproxy
-    for (let upperNoProxyItem of noProxy
-        .split(',')
-        .map(x => x.trim().toUpperCase())
-        .filter(x => x)) {
-        if (upperReqHosts.some(x => x === upperNoProxyItem)) {
-            return true;
-        }
-    }
-    return false;
-}
-exports.checkBypass = checkBypass;
 
-
-/***/ }),
-
-/***/ 658:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
+module.exports = new Type('tag:yaml.org,2002:merge', {
+  kind: 'scalar',
+  resolve: resolveYamlMerge
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.run = void 0;
-const core = __importStar(__webpack_require__(872));
-const sfx = __importStar(__webpack_require__(607));
-const yaml = __importStar(__webpack_require__(280));
-function run() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const apiKey = core.getInput('token', { required: true });
-            const apiURL = core.getInput('api-url') || 'https://ingest.us1.signalfx.com';
-            const metrics = yaml.safeLoad(core.getInput('metrics')) || [];
-            yield sfx.sendMetrics(apiURL, apiKey, metrics);
-            core.debug('set metric');
-            const events = yaml.safeLoad(core.getInput('events')) || [];
-            yield sfx.sendEvents(apiURL, apiKey, events);
-        }
-        catch (error) {
-            core.setFailed(`Run failed: ${error.message}`);
-        }
-    });
-}
-exports.run = run;
 
 
 /***/ }),
@@ -3088,195 +4118,7 @@ module.exports = require("util");
 
 /***/ }),
 
-/***/ 690:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-
-var common = __webpack_require__(557);
-var Type   = __webpack_require__(861);
-
-function isHexCode(c) {
-  return ((0x30/* 0 */ <= c) && (c <= 0x39/* 9 */)) ||
-         ((0x41/* A */ <= c) && (c <= 0x46/* F */)) ||
-         ((0x61/* a */ <= c) && (c <= 0x66/* f */));
-}
-
-function isOctCode(c) {
-  return ((0x30/* 0 */ <= c) && (c <= 0x37/* 7 */));
-}
-
-function isDecCode(c) {
-  return ((0x30/* 0 */ <= c) && (c <= 0x39/* 9 */));
-}
-
-function resolveYamlInteger(data) {
-  if (data === null) return false;
-
-  var max = data.length,
-      index = 0,
-      hasDigits = false,
-      ch;
-
-  if (!max) return false;
-
-  ch = data[index];
-
-  // sign
-  if (ch === '-' || ch === '+') {
-    ch = data[++index];
-  }
-
-  if (ch === '0') {
-    // 0
-    if (index + 1 === max) return true;
-    ch = data[++index];
-
-    // base 2, base 8, base 16
-
-    if (ch === 'b') {
-      // base 2
-      index++;
-
-      for (; index < max; index++) {
-        ch = data[index];
-        if (ch === '_') continue;
-        if (ch !== '0' && ch !== '1') return false;
-        hasDigits = true;
-      }
-      return hasDigits && ch !== '_';
-    }
-
-
-    if (ch === 'x') {
-      // base 16
-      index++;
-
-      for (; index < max; index++) {
-        ch = data[index];
-        if (ch === '_') continue;
-        if (!isHexCode(data.charCodeAt(index))) return false;
-        hasDigits = true;
-      }
-      return hasDigits && ch !== '_';
-    }
-
-    // base 8
-    for (; index < max; index++) {
-      ch = data[index];
-      if (ch === '_') continue;
-      if (!isOctCode(data.charCodeAt(index))) return false;
-      hasDigits = true;
-    }
-    return hasDigits && ch !== '_';
-  }
-
-  // base 10 (except 0) or base 60
-
-  // value should not start with `_`;
-  if (ch === '_') return false;
-
-  for (; index < max; index++) {
-    ch = data[index];
-    if (ch === '_') continue;
-    if (ch === ':') break;
-    if (!isDecCode(data.charCodeAt(index))) {
-      return false;
-    }
-    hasDigits = true;
-  }
-
-  // Should have digits and should not end with `_`
-  if (!hasDigits || ch === '_') return false;
-
-  // if !base60 - done;
-  if (ch !== ':') return true;
-
-  // base60 almost not used, no needs to optimize
-  return /^(:[0-5]?[0-9])+$/.test(data.slice(index));
-}
-
-function constructYamlInteger(data) {
-  var value = data, sign = 1, ch, base, digits = [];
-
-  if (value.indexOf('_') !== -1) {
-    value = value.replace(/_/g, '');
-  }
-
-  ch = value[0];
-
-  if (ch === '-' || ch === '+') {
-    if (ch === '-') sign = -1;
-    value = value.slice(1);
-    ch = value[0];
-  }
-
-  if (value === '0') return 0;
-
-  if (ch === '0') {
-    if (value[1] === 'b') return sign * parseInt(value.slice(2), 2);
-    if (value[1] === 'x') return sign * parseInt(value, 16);
-    return sign * parseInt(value, 8);
-  }
-
-  if (value.indexOf(':') !== -1) {
-    value.split(':').forEach(function (v) {
-      digits.unshift(parseInt(v, 10));
-    });
-
-    value = 0;
-    base = 1;
-
-    digits.forEach(function (d) {
-      value += (d * base);
-      base *= 60;
-    });
-
-    return sign * value;
-
-  }
-
-  return sign * parseInt(value, 10);
-}
-
-function isInteger(object) {
-  return (Object.prototype.toString.call(object)) === '[object Number]' &&
-         (object % 1 === 0 && !common.isNegativeZero(object));
-}
-
-module.exports = new Type('tag:yaml.org,2002:int', {
-  kind: 'scalar',
-  resolve: resolveYamlInteger,
-  construct: constructYamlInteger,
-  predicate: isInteger,
-  represent: {
-    binary:      function (obj) { return obj >= 0 ? '0b' + obj.toString(2) : '-0b' + obj.toString(2).slice(1); },
-    octal:       function (obj) { return obj >= 0 ? '0'  + obj.toString(8) : '-0'  + obj.toString(8).slice(1); },
-    decimal:     function (obj) { return obj.toString(10); },
-    /* eslint-disable max-len */
-    hexadecimal: function (obj) { return obj >= 0 ? '0x' + obj.toString(16).toUpperCase() :  '-0x' + obj.toString(16).toUpperCase().slice(1); }
-  },
-  defaultStyle: 'decimal',
-  styleAliases: {
-    binary:      [ 2,  'bin' ],
-    octal:       [ 8,  'oct' ],
-    decimal:     [ 10, 'dec' ],
-    hexadecimal: [ 16, 'hex' ]
-  }
-});
-
-
-/***/ }),
-
-/***/ 747:
-/***/ (function(module) {
-
-module.exports = require("fs");
-
-/***/ }),
-
-/***/ 756:
+/***/ 685:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
@@ -3284,10 +4126,10 @@ module.exports = require("fs");
 
 /*eslint-disable no-use-before-define*/
 
-var common              = __webpack_require__(557);
-var YAMLException       = __webpack_require__(984);
-var DEFAULT_FULL_SCHEMA = __webpack_require__(930);
-var DEFAULT_SAFE_SCHEMA = __webpack_require__(773);
+var common              = __webpack_require__(740);
+var YAMLException       = __webpack_require__(556);
+var DEFAULT_FULL_SCHEMA = __webpack_require__(910);
+var DEFAULT_SAFE_SCHEMA = __webpack_require__(723);
 
 var _toString       = Object.prototype.toString;
 var _hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -4134,7 +4976,7 @@ module.exports.safeDump = safeDump;
 
 /***/ }),
 
-/***/ 773:
+/***/ 723:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
@@ -4148,61 +4990,158 @@ module.exports.safeDump = safeDump;
 
 
 
-var Schema = __webpack_require__(411);
+var Schema = __webpack_require__(43);
 
 
 module.exports = new Schema({
   include: [
-    __webpack_require__(152)
+    __webpack_require__(611)
   ],
   implicit: [
-    __webpack_require__(778),
-    __webpack_require__(311)
+    __webpack_require__(841),
+    __webpack_require__(633)
   ],
   explicit: [
-    __webpack_require__(141),
-    __webpack_require__(71),
-    __webpack_require__(10),
-    __webpack_require__(956)
+    __webpack_require__(913),
+    __webpack_require__(842),
+    __webpack_require__(947),
+    __webpack_require__(100)
   ]
 });
 
 
 /***/ }),
 
-/***/ 774:
-/***/ (function(__unusedmodule, exports) {
+/***/ 740:
+/***/ (function(module) {
 
 "use strict";
 
-// We use any as a valid input type
-/* eslint-disable @typescript-eslint/no-explicit-any */
-Object.defineProperty(exports, "__esModule", { value: true });
-/**
- * Sanitizes an input into a string so it can be passed into issueCommand safely
- * @param input input to sanitize into a string
- */
-function toCommandValue(input) {
-    if (input === null || input === undefined) {
-        return '';
-    }
-    else if (typeof input === 'string' || input instanceof String) {
-        return input;
-    }
-    return JSON.stringify(input);
+
+
+function isNothing(subject) {
+  return (typeof subject === 'undefined') || (subject === null);
 }
-exports.toCommandValue = toCommandValue;
-//# sourceMappingURL=utils.js.map
+
+
+function isObject(subject) {
+  return (typeof subject === 'object') && (subject !== null);
+}
+
+
+function toArray(sequence) {
+  if (Array.isArray(sequence)) return sequence;
+  else if (isNothing(sequence)) return [];
+
+  return [ sequence ];
+}
+
+
+function extend(target, source) {
+  var index, length, key, sourceKeys;
+
+  if (source) {
+    sourceKeys = Object.keys(source);
+
+    for (index = 0, length = sourceKeys.length; index < length; index += 1) {
+      key = sourceKeys[index];
+      target[key] = source[key];
+    }
+  }
+
+  return target;
+}
+
+
+function repeat(string, count) {
+  var result = '', cycle;
+
+  for (cycle = 0; cycle < count; cycle += 1) {
+    result += string;
+  }
+
+  return result;
+}
+
+
+function isNegativeZero(number) {
+  return (number === 0) && (Number.NEGATIVE_INFINITY === 1 / number);
+}
+
+
+module.exports.isNothing      = isNothing;
+module.exports.isObject       = isObject;
+module.exports.toArray        = toArray;
+module.exports.repeat         = repeat;
+module.exports.isNegativeZero = isNegativeZero;
+module.exports.extend         = extend;
+
 
 /***/ }),
 
-/***/ 778:
+/***/ 747:
+/***/ (function(module) {
+
+module.exports = require("fs");
+
+/***/ }),
+
+/***/ 809:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
 
-var Type = __webpack_require__(861);
+var Type = __webpack_require__(945);
+
+function resolveYamlNull(data) {
+  if (data === null) return true;
+
+  var max = data.length;
+
+  return (max === 1 && data === '~') ||
+         (max === 4 && (data === 'null' || data === 'Null' || data === 'NULL'));
+}
+
+function constructYamlNull() {
+  return null;
+}
+
+function isNull(object) {
+  return object === null;
+}
+
+module.exports = new Type('tag:yaml.org,2002:null', {
+  kind: 'scalar',
+  resolve: resolveYamlNull,
+  construct: constructYamlNull,
+  predicate: isNull,
+  represent: {
+    canonical: function () { return '~';    },
+    lowercase: function () { return 'null'; },
+    uppercase: function () { return 'NULL'; },
+    camelcase: function () { return 'Null'; }
+  },
+  defaultStyle: 'lowercase'
+});
+
+
+/***/ }),
+
+/***/ 835:
+/***/ (function(module) {
+
+module.exports = require("url");
+
+/***/ }),
+
+/***/ 841:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var Type = __webpack_require__(945);
 
 var YAML_DATE_REGEXP = new RegExp(
   '^([0-9][0-9][0-9][0-9])'          + // [1] year
@@ -4292,388 +5231,319 @@ module.exports = new Type('tag:yaml.org,2002:timestamp', {
 
 /***/ }),
 
-/***/ 812:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-
-var net = __webpack_require__(631);
-var tls = __webpack_require__(16);
-var http = __webpack_require__(605);
-var https = __webpack_require__(211);
-var events = __webpack_require__(614);
-var assert = __webpack_require__(357);
-var util = __webpack_require__(669);
-
-
-exports.httpOverHttp = httpOverHttp;
-exports.httpsOverHttp = httpsOverHttp;
-exports.httpOverHttps = httpOverHttps;
-exports.httpsOverHttps = httpsOverHttps;
-
-
-function httpOverHttp(options) {
-  var agent = new TunnelingAgent(options);
-  agent.request = http.request;
-  return agent;
-}
-
-function httpsOverHttp(options) {
-  var agent = new TunnelingAgent(options);
-  agent.request = http.request;
-  agent.createSocket = createSecureSocket;
-  agent.defaultPort = 443;
-  return agent;
-}
-
-function httpOverHttps(options) {
-  var agent = new TunnelingAgent(options);
-  agent.request = https.request;
-  return agent;
-}
-
-function httpsOverHttps(options) {
-  var agent = new TunnelingAgent(options);
-  agent.request = https.request;
-  agent.createSocket = createSecureSocket;
-  agent.defaultPort = 443;
-  return agent;
-}
-
-
-function TunnelingAgent(options) {
-  var self = this;
-  self.options = options || {};
-  self.proxyOptions = self.options.proxy || {};
-  self.maxSockets = self.options.maxSockets || http.Agent.defaultMaxSockets;
-  self.requests = [];
-  self.sockets = [];
-
-  self.on('free', function onFree(socket, host, port, localAddress) {
-    var options = toOptions(host, port, localAddress);
-    for (var i = 0, len = self.requests.length; i < len; ++i) {
-      var pending = self.requests[i];
-      if (pending.host === options.host && pending.port === options.port) {
-        // Detect the request to connect same origin server,
-        // reuse the connection.
-        self.requests.splice(i, 1);
-        pending.request.onSocket(socket);
-        return;
-      }
-    }
-    socket.destroy();
-    self.removeSocket(socket);
-  });
-}
-util.inherits(TunnelingAgent, events.EventEmitter);
-
-TunnelingAgent.prototype.addRequest = function addRequest(req, host, port, localAddress) {
-  var self = this;
-  var options = mergeOptions({request: req}, self.options, toOptions(host, port, localAddress));
-
-  if (self.sockets.length >= this.maxSockets) {
-    // We are over limit so we'll add it to the queue.
-    self.requests.push(options);
-    return;
-  }
-
-  // If we are under maxSockets create a new one.
-  self.createSocket(options, function(socket) {
-    socket.on('free', onFree);
-    socket.on('close', onCloseOrRemove);
-    socket.on('agentRemove', onCloseOrRemove);
-    req.onSocket(socket);
-
-    function onFree() {
-      self.emit('free', socket, options);
-    }
-
-    function onCloseOrRemove(err) {
-      self.removeSocket(socket);
-      socket.removeListener('free', onFree);
-      socket.removeListener('close', onCloseOrRemove);
-      socket.removeListener('agentRemove', onCloseOrRemove);
-    }
-  });
-};
-
-TunnelingAgent.prototype.createSocket = function createSocket(options, cb) {
-  var self = this;
-  var placeholder = {};
-  self.sockets.push(placeholder);
-
-  var connectOptions = mergeOptions({}, self.proxyOptions, {
-    method: 'CONNECT',
-    path: options.host + ':' + options.port,
-    agent: false,
-    headers: {
-      host: options.host + ':' + options.port
-    }
-  });
-  if (options.localAddress) {
-    connectOptions.localAddress = options.localAddress;
-  }
-  if (connectOptions.proxyAuth) {
-    connectOptions.headers = connectOptions.headers || {};
-    connectOptions.headers['Proxy-Authorization'] = 'Basic ' +
-        new Buffer(connectOptions.proxyAuth).toString('base64');
-  }
-
-  debug('making CONNECT request');
-  var connectReq = self.request(connectOptions);
-  connectReq.useChunkedEncodingByDefault = false; // for v0.6
-  connectReq.once('response', onResponse); // for v0.6
-  connectReq.once('upgrade', onUpgrade);   // for v0.6
-  connectReq.once('connect', onConnect);   // for v0.7 or later
-  connectReq.once('error', onError);
-  connectReq.end();
-
-  function onResponse(res) {
-    // Very hacky. This is necessary to avoid http-parser leaks.
-    res.upgrade = true;
-  }
-
-  function onUpgrade(res, socket, head) {
-    // Hacky.
-    process.nextTick(function() {
-      onConnect(res, socket, head);
-    });
-  }
-
-  function onConnect(res, socket, head) {
-    connectReq.removeAllListeners();
-    socket.removeAllListeners();
-
-    if (res.statusCode !== 200) {
-      debug('tunneling socket could not be established, statusCode=%d',
-        res.statusCode);
-      socket.destroy();
-      var error = new Error('tunneling socket could not be established, ' +
-        'statusCode=' + res.statusCode);
-      error.code = 'ECONNRESET';
-      options.request.emit('error', error);
-      self.removeSocket(placeholder);
-      return;
-    }
-    if (head.length > 0) {
-      debug('got illegal response body from proxy');
-      socket.destroy();
-      var error = new Error('got illegal response body from proxy');
-      error.code = 'ECONNRESET';
-      options.request.emit('error', error);
-      self.removeSocket(placeholder);
-      return;
-    }
-    debug('tunneling connection has established');
-    self.sockets[self.sockets.indexOf(placeholder)] = socket;
-    return cb(socket);
-  }
-
-  function onError(cause) {
-    connectReq.removeAllListeners();
-
-    debug('tunneling socket could not be established, cause=%s\n',
-          cause.message, cause.stack);
-    var error = new Error('tunneling socket could not be established, ' +
-                          'cause=' + cause.message);
-    error.code = 'ECONNRESET';
-    options.request.emit('error', error);
-    self.removeSocket(placeholder);
-  }
-};
-
-TunnelingAgent.prototype.removeSocket = function removeSocket(socket) {
-  var pos = this.sockets.indexOf(socket)
-  if (pos === -1) {
-    return;
-  }
-  this.sockets.splice(pos, 1);
-
-  var pending = this.requests.shift();
-  if (pending) {
-    // If we have pending requests and a socket gets closed a new one
-    // needs to be created to take over in the pool for the one that closed.
-    this.createSocket(pending, function(socket) {
-      pending.request.onSocket(socket);
-    });
-  }
-};
-
-function createSecureSocket(options, cb) {
-  var self = this;
-  TunnelingAgent.prototype.createSocket.call(self, options, function(socket) {
-    var hostHeader = options.request.getHeader('host');
-    var tlsOptions = mergeOptions({}, self.options, {
-      socket: socket,
-      servername: hostHeader ? hostHeader.replace(/:.*$/, '') : options.host
-    });
-
-    // 0 is dummy port for v0.6
-    var secureSocket = tls.connect(0, tlsOptions);
-    self.sockets[self.sockets.indexOf(socket)] = secureSocket;
-    cb(secureSocket);
-  });
-}
-
-
-function toOptions(host, port, localAddress) {
-  if (typeof host === 'string') { // since v0.10
-    return {
-      host: host,
-      port: port,
-      localAddress: localAddress
-    };
-  }
-  return host; // for v0.11 or later
-}
-
-function mergeOptions(target) {
-  for (var i = 1, len = arguments.length; i < len; ++i) {
-    var overrides = arguments[i];
-    if (typeof overrides === 'object') {
-      var keys = Object.keys(overrides);
-      for (var j = 0, keyLen = keys.length; j < keyLen; ++j) {
-        var k = keys[j];
-        if (overrides[k] !== undefined) {
-          target[k] = overrides[k];
-        }
-      }
-    }
-  }
-  return target;
-}
-
-
-var debug;
-if (process.env.NODE_DEBUG && /\btunnel\b/.test(process.env.NODE_DEBUG)) {
-  debug = function() {
-    var args = Array.prototype.slice.call(arguments);
-    if (typeof args[0] === 'string') {
-      args[0] = 'TUNNEL: ' + args[0];
-    } else {
-      args.unshift('TUNNEL:');
-    }
-    console.error.apply(console, args);
-  }
-} else {
-  debug = function() {};
-}
-exports.debug = debug; // for test
-
-
-/***/ }),
-
-/***/ 835:
-/***/ (function(module) {
-
-module.exports = require("url");
-
-/***/ }),
-
-/***/ 844:
+/***/ 842:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
 
+var Type = __webpack_require__(945);
 
-var common = __webpack_require__(557);
+var _hasOwnProperty = Object.prototype.hasOwnProperty;
+var _toString       = Object.prototype.toString;
 
+function resolveYamlOmap(data) {
+  if (data === null) return true;
 
-function Mark(name, buffer, position, line, column) {
-  this.name     = name;
-  this.buffer   = buffer;
-  this.position = position;
-  this.line     = line;
-  this.column   = column;
+  var objectKeys = [], index, length, pair, pairKey, pairHasKey,
+      object = data;
+
+  for (index = 0, length = object.length; index < length; index += 1) {
+    pair = object[index];
+    pairHasKey = false;
+
+    if (_toString.call(pair) !== '[object Object]') return false;
+
+    for (pairKey in pair) {
+      if (_hasOwnProperty.call(pair, pairKey)) {
+        if (!pairHasKey) pairHasKey = true;
+        else return false;
+      }
+    }
+
+    if (!pairHasKey) return false;
+
+    if (objectKeys.indexOf(pairKey) === -1) objectKeys.push(pairKey);
+    else return false;
+  }
+
+  return true;
 }
 
+function constructYamlOmap(data) {
+  return data !== null ? data : [];
+}
 
-Mark.prototype.getSnippet = function getSnippet(indent, maxLength) {
-  var head, start, tail, end, snippet;
-
-  if (!this.buffer) return null;
-
-  indent = indent || 4;
-  maxLength = maxLength || 75;
-
-  head = '';
-  start = this.position;
-
-  while (start > 0 && '\x00\r\n\x85\u2028\u2029'.indexOf(this.buffer.charAt(start - 1)) === -1) {
-    start -= 1;
-    if (this.position - start > (maxLength / 2 - 1)) {
-      head = ' ... ';
-      start += 5;
-      break;
-    }
-  }
-
-  tail = '';
-  end = this.position;
-
-  while (end < this.buffer.length && '\x00\r\n\x85\u2028\u2029'.indexOf(this.buffer.charAt(end)) === -1) {
-    end += 1;
-    if (end - this.position > (maxLength / 2 - 1)) {
-      tail = ' ... ';
-      end -= 5;
-      break;
-    }
-  }
-
-  snippet = this.buffer.slice(start, end);
-
-  return common.repeat(' ', indent) + head + snippet + tail + '\n' +
-         common.repeat(' ', indent + this.position - start + head.length) + '^';
-};
-
-
-Mark.prototype.toString = function toString(compact) {
-  var snippet, where = '';
-
-  if (this.name) {
-    where += 'in "' + this.name + '" ';
-  }
-
-  where += 'at line ' + (this.line + 1) + ', column ' + (this.column + 1);
-
-  if (!compact) {
-    snippet = this.getSnippet();
-
-    if (snippet) {
-      where += ':\n' + snippet;
-    }
-  }
-
-  return where;
-};
-
-
-module.exports = Mark;
-
-
-/***/ }),
-
-/***/ 846:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const run_1 = __webpack_require__(658);
-(0, run_1.run)();
+module.exports = new Type('tag:yaml.org,2002:omap', {
+  kind: 'sequence',
+  resolve: resolveYamlOmap,
+  construct: constructYamlOmap
+});
 
 
 /***/ }),
 
 /***/ 861:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.run = void 0;
+const core = __importStar(__webpack_require__(470));
+const sfx = __importStar(__webpack_require__(592));
+const yaml = __importStar(__webpack_require__(414));
+function run() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const apiKey = core.getInput('token', { required: true });
+            const apiURL = core.getInput('api-url') || 'https://ingest.us1.signalfx.com';
+            const metrics = yaml.safeLoad(core.getInput('metrics')) || [];
+            yield sfx.sendMetrics(apiURL, apiKey, metrics);
+            core.debug('set metric');
+            const events = yaml.safeLoad(core.getInput('events')) || [];
+            yield sfx.sendEvents(apiURL, apiKey, events);
+        }
+        catch (error) {
+            core.setFailed(`Run failed: ${error.message}`);
+        }
+    });
+}
+exports.run = run;
+
+
+/***/ }),
+
+/***/ 910:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+// JS-YAML's default schema for `load` function.
+// It is not described in the YAML specification.
+//
+// This schema is based on JS-YAML's default safe schema and includes
+// JavaScript-specific types: !!js/undefined, !!js/regexp and !!js/function.
+//
+// Also this schema is used as default base schema at `Schema.create` function.
+
+
+
+
+
+var Schema = __webpack_require__(43);
+
+
+module.exports = Schema.DEFAULT = new Schema({
+  include: [
+    __webpack_require__(723)
+  ],
+  explicit: [
+    __webpack_require__(386),
+    __webpack_require__(629),
+    __webpack_require__(352)
+  ]
+});
+
+
+/***/ }),
+
+/***/ 913:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
 
-var YAMLException = __webpack_require__(984);
+/*eslint-disable no-bitwise*/
+
+var NodeBuffer;
+
+try {
+  // A trick for browserified version, to not include `Buffer` shim
+  var _require = require;
+  NodeBuffer = _require('buffer').Buffer;
+} catch (__) {}
+
+var Type       = __webpack_require__(945);
+
+
+// [ 64, 65, 66 ] -> [ padding, CR, LF ]
+var BASE64_MAP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r';
+
+
+function resolveYamlBinary(data) {
+  if (data === null) return false;
+
+  var code, idx, bitlen = 0, max = data.length, map = BASE64_MAP;
+
+  // Convert one by one.
+  for (idx = 0; idx < max; idx++) {
+    code = map.indexOf(data.charAt(idx));
+
+    // Skip CR/LF
+    if (code > 64) continue;
+
+    // Fail on illegal characters
+    if (code < 0) return false;
+
+    bitlen += 6;
+  }
+
+  // If there are any bits left, source was corrupted
+  return (bitlen % 8) === 0;
+}
+
+function constructYamlBinary(data) {
+  var idx, tailbits,
+      input = data.replace(/[\r\n=]/g, ''), // remove CR/LF & padding to simplify scan
+      max = input.length,
+      map = BASE64_MAP,
+      bits = 0,
+      result = [];
+
+  // Collect by 6*4 bits (3 bytes)
+
+  for (idx = 0; idx < max; idx++) {
+    if ((idx % 4 === 0) && idx) {
+      result.push((bits >> 16) & 0xFF);
+      result.push((bits >> 8) & 0xFF);
+      result.push(bits & 0xFF);
+    }
+
+    bits = (bits << 6) | map.indexOf(input.charAt(idx));
+  }
+
+  // Dump tail
+
+  tailbits = (max % 4) * 6;
+
+  if (tailbits === 0) {
+    result.push((bits >> 16) & 0xFF);
+    result.push((bits >> 8) & 0xFF);
+    result.push(bits & 0xFF);
+  } else if (tailbits === 18) {
+    result.push((bits >> 10) & 0xFF);
+    result.push((bits >> 2) & 0xFF);
+  } else if (tailbits === 12) {
+    result.push((bits >> 4) & 0xFF);
+  }
+
+  // Wrap into Buffer for NodeJS and leave Array for browser
+  if (NodeBuffer) {
+    // Support node 6.+ Buffer API when available
+    return NodeBuffer.from ? NodeBuffer.from(result) : new NodeBuffer(result);
+  }
+
+  return result;
+}
+
+function representYamlBinary(object /*, style*/) {
+  var result = '', bits = 0, idx, tail,
+      max = object.length,
+      map = BASE64_MAP;
+
+  // Convert every three bytes to 4 ASCII characters.
+
+  for (idx = 0; idx < max; idx++) {
+    if ((idx % 3 === 0) && idx) {
+      result += map[(bits >> 18) & 0x3F];
+      result += map[(bits >> 12) & 0x3F];
+      result += map[(bits >> 6) & 0x3F];
+      result += map[bits & 0x3F];
+    }
+
+    bits = (bits << 8) + object[idx];
+  }
+
+  // Dump tail
+
+  tail = max % 3;
+
+  if (tail === 0) {
+    result += map[(bits >> 18) & 0x3F];
+    result += map[(bits >> 12) & 0x3F];
+    result += map[(bits >> 6) & 0x3F];
+    result += map[bits & 0x3F];
+  } else if (tail === 2) {
+    result += map[(bits >> 10) & 0x3F];
+    result += map[(bits >> 4) & 0x3F];
+    result += map[(bits << 2) & 0x3F];
+    result += map[64];
+  } else if (tail === 1) {
+    result += map[(bits >> 2) & 0x3F];
+    result += map[(bits << 4) & 0x3F];
+    result += map[64];
+    result += map[64];
+  }
+
+  return result;
+}
+
+function isBinary(object) {
+  return NodeBuffer && NodeBuffer.isBuffer(object);
+}
+
+module.exports = new Type('tag:yaml.org,2002:binary', {
+  kind: 'scalar',
+  resolve: resolveYamlBinary,
+  construct: constructYamlBinary,
+  predicate: isBinary,
+  represent: representYamlBinary
+});
+
+
+/***/ }),
+
+/***/ 921:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var Type = __webpack_require__(945);
+
+module.exports = new Type('tag:yaml.org,2002:seq', {
+  kind: 'sequence',
+  construct: function (data) { return data !== null ? data : []; }
+});
+
+
+/***/ }),
+
+/***/ 945:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var YAMLException = __webpack_require__(556);
 
 var TYPE_CONSTRUCTOR_OPTIONS = [
   'kind',
@@ -4736,1036 +5606,145 @@ module.exports = Type;
 
 /***/ }),
 
-/***/ 872:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const command_1 = __webpack_require__(988);
-const file_command_1 = __webpack_require__(191);
-const utils_1 = __webpack_require__(774);
-const os = __importStar(__webpack_require__(87));
-const path = __importStar(__webpack_require__(622));
-/**
- * The code to exit an action
- */
-var ExitCode;
-(function (ExitCode) {
-    /**
-     * A code indicating that the action was successful
-     */
-    ExitCode[ExitCode["Success"] = 0] = "Success";
-    /**
-     * A code indicating that the action was a failure
-     */
-    ExitCode[ExitCode["Failure"] = 1] = "Failure";
-})(ExitCode = exports.ExitCode || (exports.ExitCode = {}));
-//-----------------------------------------------------------------------
-// Variables
-//-----------------------------------------------------------------------
-/**
- * Sets env variable for this action and future actions in the job
- * @param name the name of the variable to set
- * @param val the value of the variable. Non-string values will be converted to a string via JSON.stringify
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function exportVariable(name, val) {
-    const convertedVal = utils_1.toCommandValue(val);
-    process.env[name] = convertedVal;
-    const filePath = process.env['GITHUB_ENV'] || '';
-    if (filePath) {
-        const delimiter = '_GitHubActionsFileCommandDelimeter_';
-        const commandValue = `${name}<<${delimiter}${os.EOL}${convertedVal}${os.EOL}${delimiter}`;
-        file_command_1.issueCommand('ENV', commandValue);
-    }
-    else {
-        command_1.issueCommand('set-env', { name }, convertedVal);
-    }
-}
-exports.exportVariable = exportVariable;
-/**
- * Registers a secret which will get masked from logs
- * @param secret value of the secret
- */
-function setSecret(secret) {
-    command_1.issueCommand('add-mask', {}, secret);
-}
-exports.setSecret = setSecret;
-/**
- * Prepends inputPath to the PATH (for this action and future actions)
- * @param inputPath
- */
-function addPath(inputPath) {
-    const filePath = process.env['GITHUB_PATH'] || '';
-    if (filePath) {
-        file_command_1.issueCommand('PATH', inputPath);
-    }
-    else {
-        command_1.issueCommand('add-path', {}, inputPath);
-    }
-    process.env['PATH'] = `${inputPath}${path.delimiter}${process.env['PATH']}`;
-}
-exports.addPath = addPath;
-/**
- * Gets the value of an input.  The value is also trimmed.
- *
- * @param     name     name of the input to get
- * @param     options  optional. See InputOptions.
- * @returns   string
- */
-function getInput(name, options) {
-    const val = process.env[`INPUT_${name.replace(/ /g, '_').toUpperCase()}`] || '';
-    if (options && options.required && !val) {
-        throw new Error(`Input required and not supplied: ${name}`);
-    }
-    return val.trim();
-}
-exports.getInput = getInput;
-/**
- * Sets the value of an output.
- *
- * @param     name     name of the output to set
- * @param     value    value to store. Non-string values will be converted to a string via JSON.stringify
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function setOutput(name, value) {
-    command_1.issueCommand('set-output', { name }, value);
-}
-exports.setOutput = setOutput;
-/**
- * Enables or disables the echoing of commands into stdout for the rest of the step.
- * Echoing is disabled by default if ACTIONS_STEP_DEBUG is not set.
- *
- */
-function setCommandEcho(enabled) {
-    command_1.issue('echo', enabled ? 'on' : 'off');
-}
-exports.setCommandEcho = setCommandEcho;
-//-----------------------------------------------------------------------
-// Results
-//-----------------------------------------------------------------------
-/**
- * Sets the action status to failed.
- * When the action exits it will be with an exit code of 1
- * @param message add error issue message
- */
-function setFailed(message) {
-    process.exitCode = ExitCode.Failure;
-    error(message);
-}
-exports.setFailed = setFailed;
-//-----------------------------------------------------------------------
-// Logging Commands
-//-----------------------------------------------------------------------
-/**
- * Gets whether Actions Step Debug is on or not
- */
-function isDebug() {
-    return process.env['RUNNER_DEBUG'] === '1';
-}
-exports.isDebug = isDebug;
-/**
- * Writes debug message to user log
- * @param message debug message
- */
-function debug(message) {
-    command_1.issueCommand('debug', {}, message);
-}
-exports.debug = debug;
-/**
- * Adds an error issue
- * @param message error issue message. Errors will be converted to string via toString()
- */
-function error(message) {
-    command_1.issue('error', message instanceof Error ? message.toString() : message);
-}
-exports.error = error;
-/**
- * Adds an warning issue
- * @param message warning issue message. Errors will be converted to string via toString()
- */
-function warning(message) {
-    command_1.issue('warning', message instanceof Error ? message.toString() : message);
-}
-exports.warning = warning;
-/**
- * Writes info to log with console.log.
- * @param message info message
- */
-function info(message) {
-    process.stdout.write(message + os.EOL);
-}
-exports.info = info;
-/**
- * Begin an output group.
- *
- * Output until the next `groupEnd` will be foldable in this group
- *
- * @param name The name of the output group
- */
-function startGroup(name) {
-    command_1.issue('group', name);
-}
-exports.startGroup = startGroup;
-/**
- * End an output group.
- */
-function endGroup() {
-    command_1.issue('endgroup');
-}
-exports.endGroup = endGroup;
-/**
- * Wrap an asynchronous function call in a group.
- *
- * Returns the same type as the function itself.
- *
- * @param name The name of the group
- * @param fn The function to wrap in the group
- */
-function group(name, fn) {
-    return __awaiter(this, void 0, void 0, function* () {
-        startGroup(name);
-        let result;
-        try {
-            result = yield fn();
-        }
-        finally {
-            endGroup();
-        }
-        return result;
-    });
-}
-exports.group = group;
-//-----------------------------------------------------------------------
-// Wrapper action state
-//-----------------------------------------------------------------------
-/**
- * Saves state for current action, the state can only be retrieved by this action's post job execution.
- *
- * @param     name     name of the state to store
- * @param     value    value to store. Non-string values will be converted to a string via JSON.stringify
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function saveState(name, value) {
-    command_1.issueCommand('save-state', { name }, value);
-}
-exports.saveState = saveState;
-/**
- * Gets the value of an state set by this action's main execution.
- *
- * @param     name     name of the state to get
- * @returns   string
- */
-function getState(name) {
-    return process.env[`STATE_${name}`] || '';
-}
-exports.getState = getState;
-//# sourceMappingURL=core.js.map
-
-/***/ }),
-
-/***/ 914:
+/***/ 947:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
 
-var Type = __webpack_require__(861);
+var Type = __webpack_require__(945);
 
-function resolveYamlBoolean(data) {
-  if (data === null) return false;
+var _toString = Object.prototype.toString;
 
-  var max = data.length;
-
-  return (max === 4 && (data === 'true' || data === 'True' || data === 'TRUE')) ||
-         (max === 5 && (data === 'false' || data === 'False' || data === 'FALSE'));
-}
-
-function constructYamlBoolean(data) {
-  return data === 'true' ||
-         data === 'True' ||
-         data === 'TRUE';
-}
-
-function isBoolean(object) {
-  return Object.prototype.toString.call(object) === '[object Boolean]';
-}
-
-module.exports = new Type('tag:yaml.org,2002:bool', {
-  kind: 'scalar',
-  resolve: resolveYamlBoolean,
-  construct: constructYamlBoolean,
-  predicate: isBoolean,
-  represent: {
-    lowercase: function (object) { return object ? 'true' : 'false'; },
-    uppercase: function (object) { return object ? 'TRUE' : 'FALSE'; },
-    camelcase: function (object) { return object ? 'True' : 'False'; }
-  },
-  defaultStyle: 'lowercase'
-});
-
-
-/***/ }),
-
-/***/ 930:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-// JS-YAML's default schema for `load` function.
-// It is not described in the YAML specification.
-//
-// This schema is based on JS-YAML's default safe schema and includes
-// JavaScript-specific types: !!js/undefined, !!js/regexp and !!js/function.
-//
-// Also this schema is used as default base schema at `Schema.create` function.
-
-
-
-
-
-var Schema = __webpack_require__(411);
-
-
-module.exports = Schema.DEFAULT = new Schema({
-  include: [
-    __webpack_require__(773)
-  ],
-  explicit: [
-    __webpack_require__(38),
-    __webpack_require__(418),
-    __webpack_require__(204)
-  ]
-});
-
-
-/***/ }),
-
-/***/ 956:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-
-
-var Type = __webpack_require__(861);
-
-var _hasOwnProperty = Object.prototype.hasOwnProperty;
-
-function resolveYamlSet(data) {
+function resolveYamlPairs(data) {
   if (data === null) return true;
 
-  var key, object = data;
+  var index, length, pair, keys, result,
+      object = data;
 
-  for (key in object) {
-    if (_hasOwnProperty.call(object, key)) {
-      if (object[key] !== null) return false;
-    }
+  result = new Array(object.length);
+
+  for (index = 0, length = object.length; index < length; index += 1) {
+    pair = object[index];
+
+    if (_toString.call(pair) !== '[object Object]') return false;
+
+    keys = Object.keys(pair);
+
+    if (keys.length !== 1) return false;
+
+    result[index] = [ keys[0], pair[keys[0]] ];
   }
 
   return true;
 }
 
-function constructYamlSet(data) {
-  return data !== null ? data : {};
+function constructYamlPairs(data) {
+  if (data === null) return [];
+
+  var index, length, pair, keys, result,
+      object = data;
+
+  result = new Array(object.length);
+
+  for (index = 0, length = object.length; index < length; index += 1) {
+    pair = object[index];
+
+    keys = Object.keys(pair);
+
+    result[index] = [ keys[0], pair[keys[0]] ];
+  }
+
+  return result;
 }
 
-module.exports = new Type('tag:yaml.org,2002:set', {
-  kind: 'mapping',
-  resolve: resolveYamlSet,
-  construct: constructYamlSet
+module.exports = new Type('tag:yaml.org,2002:pairs', {
+  kind: 'sequence',
+  resolve: resolveYamlPairs,
+  construct: constructYamlPairs
 });
 
 
 /***/ }),
 
-/***/ 984:
-/***/ (function(module) {
-
-"use strict";
-// YAML error class. http://stackoverflow.com/questions/8458984
-//
-
-
-function YAMLException(reason, mark) {
-  // Super constructor
-  Error.call(this);
-
-  this.name = 'YAMLException';
-  this.reason = reason;
-  this.mark = mark;
-  this.message = (this.reason || '(unknown reason)') + (this.mark ? ' ' + this.mark.toString() : '');
-
-  // Include stack trace in error object
-  if (Error.captureStackTrace) {
-    // Chrome and NodeJS
-    Error.captureStackTrace(this, this.constructor);
-  } else {
-    // FF, IE 10+ and Safari 6+. Fallback for others
-    this.stack = (new Error()).stack || '';
-  }
-}
-
-
-// Inherit from Error
-YAMLException.prototype = Object.create(Error.prototype);
-YAMLException.prototype.constructor = YAMLException;
-
-
-YAMLException.prototype.toString = function toString(compact) {
-  var result = this.name + ': ';
-
-  result += this.reason || '(unknown reason)';
-
-  if (!compact && this.mark) {
-    result += ' ' + this.mark.toString();
-  }
-
-  return result;
-};
-
-
-module.exports = YAMLException;
-
-
-/***/ }),
-
-/***/ 988:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const os = __importStar(__webpack_require__(87));
-const utils_1 = __webpack_require__(774);
-/**
- * Commands
- *
- * Command Format:
- *   ::name key=value,key=value::message
- *
- * Examples:
- *   ::warning::This is the message
- *   ::set-env name=MY_VAR::some value
- */
-function issueCommand(command, properties, message) {
-    const cmd = new Command(command, properties, message);
-    process.stdout.write(cmd.toString() + os.EOL);
-}
-exports.issueCommand = issueCommand;
-function issue(name, message = '') {
-    issueCommand(name, {}, message);
-}
-exports.issue = issue;
-const CMD_STRING = '::';
-class Command {
-    constructor(command, properties, message) {
-        if (!command) {
-            command = 'missing.command';
-        }
-        this.command = command;
-        this.properties = properties;
-        this.message = message;
-    }
-    toString() {
-        let cmdStr = CMD_STRING + this.command;
-        if (this.properties && Object.keys(this.properties).length > 0) {
-            cmdStr += ' ';
-            let first = true;
-            for (const key in this.properties) {
-                if (this.properties.hasOwnProperty(key)) {
-                    const val = this.properties[key];
-                    if (val) {
-                        if (first) {
-                            first = false;
-                        }
-                        else {
-                            cmdStr += ',';
-                        }
-                        cmdStr += `${key}=${escapeProperty(val)}`;
-                    }
-                }
-            }
-        }
-        cmdStr += `${CMD_STRING}${escapeData(this.message)}`;
-        return cmdStr;
-    }
-}
-function escapeData(s) {
-    return utils_1.toCommandValue(s)
-        .replace(/%/g, '%25')
-        .replace(/\r/g, '%0D')
-        .replace(/\n/g, '%0A');
-}
-function escapeProperty(s) {
-    return utils_1.toCommandValue(s)
-        .replace(/%/g, '%25')
-        .replace(/\r/g, '%0D')
-        .replace(/\n/g, '%0A')
-        .replace(/:/g, '%3A')
-        .replace(/,/g, '%2C');
-}
-//# sourceMappingURL=command.js.map
-
-/***/ }),
-
-/***/ 999:
+/***/ 950:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 const url = __webpack_require__(835);
-const http = __webpack_require__(605);
-const https = __webpack_require__(211);
-const pm = __webpack_require__(651);
-let tunnel;
-var HttpCodes;
-(function (HttpCodes) {
-    HttpCodes[HttpCodes["OK"] = 200] = "OK";
-    HttpCodes[HttpCodes["MultipleChoices"] = 300] = "MultipleChoices";
-    HttpCodes[HttpCodes["MovedPermanently"] = 301] = "MovedPermanently";
-    HttpCodes[HttpCodes["ResourceMoved"] = 302] = "ResourceMoved";
-    HttpCodes[HttpCodes["SeeOther"] = 303] = "SeeOther";
-    HttpCodes[HttpCodes["NotModified"] = 304] = "NotModified";
-    HttpCodes[HttpCodes["UseProxy"] = 305] = "UseProxy";
-    HttpCodes[HttpCodes["SwitchProxy"] = 306] = "SwitchProxy";
-    HttpCodes[HttpCodes["TemporaryRedirect"] = 307] = "TemporaryRedirect";
-    HttpCodes[HttpCodes["PermanentRedirect"] = 308] = "PermanentRedirect";
-    HttpCodes[HttpCodes["BadRequest"] = 400] = "BadRequest";
-    HttpCodes[HttpCodes["Unauthorized"] = 401] = "Unauthorized";
-    HttpCodes[HttpCodes["PaymentRequired"] = 402] = "PaymentRequired";
-    HttpCodes[HttpCodes["Forbidden"] = 403] = "Forbidden";
-    HttpCodes[HttpCodes["NotFound"] = 404] = "NotFound";
-    HttpCodes[HttpCodes["MethodNotAllowed"] = 405] = "MethodNotAllowed";
-    HttpCodes[HttpCodes["NotAcceptable"] = 406] = "NotAcceptable";
-    HttpCodes[HttpCodes["ProxyAuthenticationRequired"] = 407] = "ProxyAuthenticationRequired";
-    HttpCodes[HttpCodes["RequestTimeout"] = 408] = "RequestTimeout";
-    HttpCodes[HttpCodes["Conflict"] = 409] = "Conflict";
-    HttpCodes[HttpCodes["Gone"] = 410] = "Gone";
-    HttpCodes[HttpCodes["TooManyRequests"] = 429] = "TooManyRequests";
-    HttpCodes[HttpCodes["InternalServerError"] = 500] = "InternalServerError";
-    HttpCodes[HttpCodes["NotImplemented"] = 501] = "NotImplemented";
-    HttpCodes[HttpCodes["BadGateway"] = 502] = "BadGateway";
-    HttpCodes[HttpCodes["ServiceUnavailable"] = 503] = "ServiceUnavailable";
-    HttpCodes[HttpCodes["GatewayTimeout"] = 504] = "GatewayTimeout";
-})(HttpCodes = exports.HttpCodes || (exports.HttpCodes = {}));
-var Headers;
-(function (Headers) {
-    Headers["Accept"] = "accept";
-    Headers["ContentType"] = "content-type";
-})(Headers = exports.Headers || (exports.Headers = {}));
-var MediaTypes;
-(function (MediaTypes) {
-    MediaTypes["ApplicationJson"] = "application/json";
-})(MediaTypes = exports.MediaTypes || (exports.MediaTypes = {}));
-/**
- * Returns the proxy URL, depending upon the supplied url and proxy environment variables.
- * @param serverUrl  The server URL where the request will be sent. For example, https://api.github.com
- */
-function getProxyUrl(serverUrl) {
-    let proxyUrl = pm.getProxyUrl(url.parse(serverUrl));
-    return proxyUrl ? proxyUrl.href : '';
+function getProxyUrl(reqUrl) {
+    let usingSsl = reqUrl.protocol === 'https:';
+    let proxyUrl;
+    if (checkBypass(reqUrl)) {
+        return proxyUrl;
+    }
+    let proxyVar;
+    if (usingSsl) {
+        proxyVar = process.env['https_proxy'] || process.env['HTTPS_PROXY'];
+    }
+    else {
+        proxyVar = process.env['http_proxy'] || process.env['HTTP_PROXY'];
+    }
+    if (proxyVar) {
+        proxyUrl = url.parse(proxyVar);
+    }
+    return proxyUrl;
 }
 exports.getProxyUrl = getProxyUrl;
-const HttpRedirectCodes = [
-    HttpCodes.MovedPermanently,
-    HttpCodes.ResourceMoved,
-    HttpCodes.SeeOther,
-    HttpCodes.TemporaryRedirect,
-    HttpCodes.PermanentRedirect
-];
-const HttpResponseRetryCodes = [
-    HttpCodes.BadGateway,
-    HttpCodes.ServiceUnavailable,
-    HttpCodes.GatewayTimeout
-];
-const RetryableHttpVerbs = ['OPTIONS', 'GET', 'DELETE', 'HEAD'];
-const ExponentialBackoffCeiling = 10;
-const ExponentialBackoffTimeSlice = 5;
-class HttpClientResponse {
-    constructor(message) {
-        this.message = message;
+function checkBypass(reqUrl) {
+    if (!reqUrl.hostname) {
+        return false;
     }
-    readBody() {
-        return new Promise(async (resolve, reject) => {
-            let output = Buffer.alloc(0);
-            this.message.on('data', (chunk) => {
-                output = Buffer.concat([output, chunk]);
-            });
-            this.message.on('end', () => {
-                resolve(output.toString());
-            });
-        });
+    let noProxy = process.env['no_proxy'] || process.env['NO_PROXY'] || '';
+    if (!noProxy) {
+        return false;
     }
+    // Determine the request port
+    let reqPort;
+    if (reqUrl.port) {
+        reqPort = Number(reqUrl.port);
+    }
+    else if (reqUrl.protocol === 'http:') {
+        reqPort = 80;
+    }
+    else if (reqUrl.protocol === 'https:') {
+        reqPort = 443;
+    }
+    // Format the request hostname and hostname with port
+    let upperReqHosts = [reqUrl.hostname.toUpperCase()];
+    if (typeof reqPort === 'number') {
+        upperReqHosts.push(`${upperReqHosts[0]}:${reqPort}`);
+    }
+    // Compare request host against noproxy
+    for (let upperNoProxyItem of noProxy
+        .split(',')
+        .map(x => x.trim().toUpperCase())
+        .filter(x => x)) {
+        if (upperReqHosts.some(x => x === upperNoProxyItem)) {
+            return true;
+        }
+    }
+    return false;
 }
-exports.HttpClientResponse = HttpClientResponse;
-function isHttps(requestUrl) {
-    let parsedUrl = url.parse(requestUrl);
-    return parsedUrl.protocol === 'https:';
-}
-exports.isHttps = isHttps;
-class HttpClient {
-    constructor(userAgent, handlers, requestOptions) {
-        this._ignoreSslError = false;
-        this._allowRedirects = true;
-        this._allowRedirectDowngrade = false;
-        this._maxRedirects = 50;
-        this._allowRetries = false;
-        this._maxRetries = 1;
-        this._keepAlive = false;
-        this._disposed = false;
-        this.userAgent = userAgent;
-        this.handlers = handlers || [];
-        this.requestOptions = requestOptions;
-        if (requestOptions) {
-            if (requestOptions.ignoreSslError != null) {
-                this._ignoreSslError = requestOptions.ignoreSslError;
-            }
-            this._socketTimeout = requestOptions.socketTimeout;
-            if (requestOptions.allowRedirects != null) {
-                this._allowRedirects = requestOptions.allowRedirects;
-            }
-            if (requestOptions.allowRedirectDowngrade != null) {
-                this._allowRedirectDowngrade = requestOptions.allowRedirectDowngrade;
-            }
-            if (requestOptions.maxRedirects != null) {
-                this._maxRedirects = Math.max(requestOptions.maxRedirects, 0);
-            }
-            if (requestOptions.keepAlive != null) {
-                this._keepAlive = requestOptions.keepAlive;
-            }
-            if (requestOptions.allowRetries != null) {
-                this._allowRetries = requestOptions.allowRetries;
-            }
-            if (requestOptions.maxRetries != null) {
-                this._maxRetries = requestOptions.maxRetries;
-            }
-        }
-    }
-    options(requestUrl, additionalHeaders) {
-        return this.request('OPTIONS', requestUrl, null, additionalHeaders || {});
-    }
-    get(requestUrl, additionalHeaders) {
-        return this.request('GET', requestUrl, null, additionalHeaders || {});
-    }
-    del(requestUrl, additionalHeaders) {
-        return this.request('DELETE', requestUrl, null, additionalHeaders || {});
-    }
-    post(requestUrl, data, additionalHeaders) {
-        return this.request('POST', requestUrl, data, additionalHeaders || {});
-    }
-    patch(requestUrl, data, additionalHeaders) {
-        return this.request('PATCH', requestUrl, data, additionalHeaders || {});
-    }
-    put(requestUrl, data, additionalHeaders) {
-        return this.request('PUT', requestUrl, data, additionalHeaders || {});
-    }
-    head(requestUrl, additionalHeaders) {
-        return this.request('HEAD', requestUrl, null, additionalHeaders || {});
-    }
-    sendStream(verb, requestUrl, stream, additionalHeaders) {
-        return this.request(verb, requestUrl, stream, additionalHeaders);
-    }
-    /**
-     * Gets a typed object from an endpoint
-     * Be aware that not found returns a null.  Other errors (4xx, 5xx) reject the promise
-     */
-    async getJson(requestUrl, additionalHeaders = {}) {
-        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
-        let res = await this.get(requestUrl, additionalHeaders);
-        return this._processResponse(res, this.requestOptions);
-    }
-    async postJson(requestUrl, obj, additionalHeaders = {}) {
-        let data = JSON.stringify(obj, null, 2);
-        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
-        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
-        let res = await this.post(requestUrl, data, additionalHeaders);
-        return this._processResponse(res, this.requestOptions);
-    }
-    async putJson(requestUrl, obj, additionalHeaders = {}) {
-        let data = JSON.stringify(obj, null, 2);
-        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
-        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
-        let res = await this.put(requestUrl, data, additionalHeaders);
-        return this._processResponse(res, this.requestOptions);
-    }
-    async patchJson(requestUrl, obj, additionalHeaders = {}) {
-        let data = JSON.stringify(obj, null, 2);
-        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
-        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
-        let res = await this.patch(requestUrl, data, additionalHeaders);
-        return this._processResponse(res, this.requestOptions);
-    }
-    /**
-     * Makes a raw http request.
-     * All other methods such as get, post, patch, and request ultimately call this.
-     * Prefer get, del, post and patch
-     */
-    async request(verb, requestUrl, data, headers) {
-        if (this._disposed) {
-            throw new Error('Client has already been disposed.');
-        }
-        let parsedUrl = url.parse(requestUrl);
-        let info = this._prepareRequest(verb, parsedUrl, headers);
-        // Only perform retries on reads since writes may not be idempotent.
-        let maxTries = this._allowRetries && RetryableHttpVerbs.indexOf(verb) != -1
-            ? this._maxRetries + 1
-            : 1;
-        let numTries = 0;
-        let response;
-        while (numTries < maxTries) {
-            response = await this.requestRaw(info, data);
-            // Check if it's an authentication challenge
-            if (response &&
-                response.message &&
-                response.message.statusCode === HttpCodes.Unauthorized) {
-                let authenticationHandler;
-                for (let i = 0; i < this.handlers.length; i++) {
-                    if (this.handlers[i].canHandleAuthentication(response)) {
-                        authenticationHandler = this.handlers[i];
-                        break;
-                    }
-                }
-                if (authenticationHandler) {
-                    return authenticationHandler.handleAuthentication(this, info, data);
-                }
-                else {
-                    // We have received an unauthorized response but have no handlers to handle it.
-                    // Let the response return to the caller.
-                    return response;
-                }
-            }
-            let redirectsRemaining = this._maxRedirects;
-            while (HttpRedirectCodes.indexOf(response.message.statusCode) != -1 &&
-                this._allowRedirects &&
-                redirectsRemaining > 0) {
-                const redirectUrl = response.message.headers['location'];
-                if (!redirectUrl) {
-                    // if there's no location to redirect to, we won't
-                    break;
-                }
-                let parsedRedirectUrl = url.parse(redirectUrl);
-                if (parsedUrl.protocol == 'https:' &&
-                    parsedUrl.protocol != parsedRedirectUrl.protocol &&
-                    !this._allowRedirectDowngrade) {
-                    throw new Error('Redirect from HTTPS to HTTP protocol. This downgrade is not allowed for security reasons. If you want to allow this behavior, set the allowRedirectDowngrade option to true.');
-                }
-                // we need to finish reading the response before reassigning response
-                // which will leak the open socket.
-                await response.readBody();
-                // strip authorization header if redirected to a different hostname
-                if (parsedRedirectUrl.hostname !== parsedUrl.hostname) {
-                    for (let header in headers) {
-                        // header names are case insensitive
-                        if (header.toLowerCase() === 'authorization') {
-                            delete headers[header];
-                        }
-                    }
-                }
-                // let's make the request with the new redirectUrl
-                info = this._prepareRequest(verb, parsedRedirectUrl, headers);
-                response = await this.requestRaw(info, data);
-                redirectsRemaining--;
-            }
-            if (HttpResponseRetryCodes.indexOf(response.message.statusCode) == -1) {
-                // If not a retry code, return immediately instead of retrying
-                return response;
-            }
-            numTries += 1;
-            if (numTries < maxTries) {
-                await response.readBody();
-                await this._performExponentialBackoff(numTries);
-            }
-        }
-        return response;
-    }
-    /**
-     * Needs to be called if keepAlive is set to true in request options.
-     */
-    dispose() {
-        if (this._agent) {
-            this._agent.destroy();
-        }
-        this._disposed = true;
-    }
-    /**
-     * Raw request.
-     * @param info
-     * @param data
-     */
-    requestRaw(info, data) {
-        return new Promise((resolve, reject) => {
-            let callbackForResult = function (err, res) {
-                if (err) {
-                    reject(err);
-                }
-                resolve(res);
-            };
-            this.requestRawWithCallback(info, data, callbackForResult);
-        });
-    }
-    /**
-     * Raw request with callback.
-     * @param info
-     * @param data
-     * @param onResult
-     */
-    requestRawWithCallback(info, data, onResult) {
-        let socket;
-        if (typeof data === 'string') {
-            info.options.headers['Content-Length'] = Buffer.byteLength(data, 'utf8');
-        }
-        let callbackCalled = false;
-        let handleResult = (err, res) => {
-            if (!callbackCalled) {
-                callbackCalled = true;
-                onResult(err, res);
-            }
-        };
-        let req = info.httpModule.request(info.options, (msg) => {
-            let res = new HttpClientResponse(msg);
-            handleResult(null, res);
-        });
-        req.on('socket', sock => {
-            socket = sock;
-        });
-        // If we ever get disconnected, we want the socket to timeout eventually
-        req.setTimeout(this._socketTimeout || 3 * 60000, () => {
-            if (socket) {
-                socket.end();
-            }
-            handleResult(new Error('Request timeout: ' + info.options.path), null);
-        });
-        req.on('error', function (err) {
-            // err has statusCode property
-            // res should have headers
-            handleResult(err, null);
-        });
-        if (data && typeof data === 'string') {
-            req.write(data, 'utf8');
-        }
-        if (data && typeof data !== 'string') {
-            data.on('close', function () {
-                req.end();
-            });
-            data.pipe(req);
-        }
-        else {
-            req.end();
-        }
-    }
-    /**
-     * Gets an http agent. This function is useful when you need an http agent that handles
-     * routing through a proxy server - depending upon the url and proxy environment variables.
-     * @param serverUrl  The server URL where the request will be sent. For example, https://api.github.com
-     */
-    getAgent(serverUrl) {
-        let parsedUrl = url.parse(serverUrl);
-        return this._getAgent(parsedUrl);
-    }
-    _prepareRequest(method, requestUrl, headers) {
-        const info = {};
-        info.parsedUrl = requestUrl;
-        const usingSsl = info.parsedUrl.protocol === 'https:';
-        info.httpModule = usingSsl ? https : http;
-        const defaultPort = usingSsl ? 443 : 80;
-        info.options = {};
-        info.options.host = info.parsedUrl.hostname;
-        info.options.port = info.parsedUrl.port
-            ? parseInt(info.parsedUrl.port)
-            : defaultPort;
-        info.options.path =
-            (info.parsedUrl.pathname || '') + (info.parsedUrl.search || '');
-        info.options.method = method;
-        info.options.headers = this._mergeHeaders(headers);
-        if (this.userAgent != null) {
-            info.options.headers['user-agent'] = this.userAgent;
-        }
-        info.options.agent = this._getAgent(info.parsedUrl);
-        // gives handlers an opportunity to participate
-        if (this.handlers) {
-            this.handlers.forEach(handler => {
-                handler.prepareRequest(info.options);
-            });
-        }
-        return info;
-    }
-    _mergeHeaders(headers) {
-        const lowercaseKeys = obj => Object.keys(obj).reduce((c, k) => ((c[k.toLowerCase()] = obj[k]), c), {});
-        if (this.requestOptions && this.requestOptions.headers) {
-            return Object.assign({}, lowercaseKeys(this.requestOptions.headers), lowercaseKeys(headers));
-        }
-        return lowercaseKeys(headers || {});
-    }
-    _getExistingOrDefaultHeader(additionalHeaders, header, _default) {
-        const lowercaseKeys = obj => Object.keys(obj).reduce((c, k) => ((c[k.toLowerCase()] = obj[k]), c), {});
-        let clientHeader;
-        if (this.requestOptions && this.requestOptions.headers) {
-            clientHeader = lowercaseKeys(this.requestOptions.headers)[header];
-        }
-        return additionalHeaders[header] || clientHeader || _default;
-    }
-    _getAgent(parsedUrl) {
-        let agent;
-        let proxyUrl = pm.getProxyUrl(parsedUrl);
-        let useProxy = proxyUrl && proxyUrl.hostname;
-        if (this._keepAlive && useProxy) {
-            agent = this._proxyAgent;
-        }
-        if (this._keepAlive && !useProxy) {
-            agent = this._agent;
-        }
-        // if agent is already assigned use that agent.
-        if (!!agent) {
-            return agent;
-        }
-        const usingSsl = parsedUrl.protocol === 'https:';
-        let maxSockets = 100;
-        if (!!this.requestOptions) {
-            maxSockets = this.requestOptions.maxSockets || http.globalAgent.maxSockets;
-        }
-        if (useProxy) {
-            // If using proxy, need tunnel
-            if (!tunnel) {
-                tunnel = __webpack_require__(259);
-            }
-            const agentOptions = {
-                maxSockets: maxSockets,
-                keepAlive: this._keepAlive,
-                proxy: {
-                    proxyAuth: proxyUrl.auth,
-                    host: proxyUrl.hostname,
-                    port: proxyUrl.port
-                }
-            };
-            let tunnelAgent;
-            const overHttps = proxyUrl.protocol === 'https:';
-            if (usingSsl) {
-                tunnelAgent = overHttps ? tunnel.httpsOverHttps : tunnel.httpsOverHttp;
-            }
-            else {
-                tunnelAgent = overHttps ? tunnel.httpOverHttps : tunnel.httpOverHttp;
-            }
-            agent = tunnelAgent(agentOptions);
-            this._proxyAgent = agent;
-        }
-        // if reusing agent across request and tunneling agent isn't assigned create a new agent
-        if (this._keepAlive && !agent) {
-            const options = { keepAlive: this._keepAlive, maxSockets: maxSockets };
-            agent = usingSsl ? new https.Agent(options) : new http.Agent(options);
-            this._agent = agent;
-        }
-        // if not using private agent and tunnel agent isn't setup then use global agent
-        if (!agent) {
-            agent = usingSsl ? https.globalAgent : http.globalAgent;
-        }
-        if (usingSsl && this._ignoreSslError) {
-            // we don't want to set NODE_TLS_REJECT_UNAUTHORIZED=0 since that will affect request for entire process
-            // http.RequestOptions doesn't expose a way to modify RequestOptions.agent.options
-            // we have to cast it to any and change it directly
-            agent.options = Object.assign(agent.options || {}, {
-                rejectUnauthorized: false
-            });
-        }
-        return agent;
-    }
-    _performExponentialBackoff(retryNumber) {
-        retryNumber = Math.min(ExponentialBackoffCeiling, retryNumber);
-        const ms = ExponentialBackoffTimeSlice * Math.pow(2, retryNumber);
-        return new Promise(resolve => setTimeout(() => resolve(), ms));
-    }
-    static dateTimeDeserializer(key, value) {
-        if (typeof value === 'string') {
-            let a = new Date(value);
-            if (!isNaN(a.valueOf())) {
-                return a;
-            }
-        }
-        return value;
-    }
-    async _processResponse(res, options) {
-        return new Promise(async (resolve, reject) => {
-            const statusCode = res.message.statusCode;
-            const response = {
-                statusCode: statusCode,
-                result: null,
-                headers: {}
-            };
-            // not found leads to null obj returned
-            if (statusCode == HttpCodes.NotFound) {
-                resolve(response);
-            }
-            let obj;
-            let contents;
-            // get the result from the body
-            try {
-                contents = await res.readBody();
-                if (contents && contents.length > 0) {
-                    if (options && options.deserializeDates) {
-                        obj = JSON.parse(contents, HttpClient.dateTimeDeserializer);
-                    }
-                    else {
-                        obj = JSON.parse(contents);
-                    }
-                    response.result = obj;
-                }
-                response.headers = res.message.headers;
-            }
-            catch (err) {
-                // Invalid resource (contents not json);  leaving result obj null
-            }
-            // note that 3xx redirects are handled by the http layer.
-            if (statusCode > 299) {
-                let msg;
-                // if exception/error in body, attempt to get better error
-                if (obj && obj.message) {
-                    msg = obj.message;
-                }
-                else if (contents && contents.length > 0) {
-                    // it may be the case that the exception is in the body message as string
-                    msg = contents;
-                }
-                else {
-                    msg = 'Failed request: (' + statusCode + ')';
-                }
-                let err = new Error(msg);
-                // attach statusCode and body obj (if available) to the error object
-                err['statusCode'] = statusCode;
-                if (response.result) {
-                    err['result'] = response.result;
-                }
-                reject(err);
-            }
-            else {
-                resolve(response);
-            }
-        });
-    }
-}
-exports.HttpClient = HttpClient;
+exports.checkBypass = checkBypass;
+
+
+/***/ }),
+
+/***/ 988:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var Type = __webpack_require__(945);
+
+module.exports = new Type('tag:yaml.org,2002:map', {
+  kind: 'mapping',
+  construct: function (data) { return data !== null ? data : {}; }
+});
 
 
 /***/ })

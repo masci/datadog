@@ -1,9 +1,8 @@
 name: "build-test"
-on: # rebuild any PRs and main branch changes
+on: 
   pull_request:
-  push:
     branches:
-      - master
+      - main
 
 jobs:
   # make sure build/ci work properly
@@ -19,7 +18,6 @@ jobs:
 
   # make sure the action works on a clean machine without building
   e2e:
-    if: github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     steps:
     - name: checkout
@@ -28,10 +26,19 @@ jobs:
       uses: ./
       with:
         token: ${{ secrets.SIGNALFX_TOKEN }}
+        metrics: |
+            - type: "counter"
+              name: "test.workflow.runtime"
+              value: 99
+              dimensions: 
+                repo: ${{ github.repository }}
+            - type: "gauge"
+              name: "test.workflow.cpu"
+              value: 98.5
+            - type: "cumulative_counter"
+              name: "test.workflow.executions"
+              value: 1
         events: |
-          - title: "Test run succesfully"
-            text: "GitHub job ${{ github.job }} ran successfully"
-            alert_type: "info"
-            host: ${{ github.repository_owner }}
-            tags:
-              - "project:${{ github.repository }}"
+          - eventType: 'package-test'
+            dimensions: {ci: 'true'}
+            properties: {ci: 'true'}

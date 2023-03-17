@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/actions/typescript-action/workflows/build-test/badge.svg)](https://github.com/actions/typescript-action/actions)
 
-This Action lets you send events to Signalfx from a GitHub workflow. 
+This Action lets you send events and metrics to Signalfx from a GitHub workflow. 
 
 Forked from [masci/datadog](https://github.com/masci/datadog) and translated for Signalfx
 
@@ -11,9 +11,9 @@ Forked from [masci/datadog](https://github.com/masci/datadog) and translated for
 The action can send events to any Signalfx site by setting the `api-url` param. When
 omitted, it defaults to the US endpoint: `https://ingest.us1.signalfx.com`.
 
-You can send Signalfx events from workflows. Please note
-how `events` is indeed a string containing YAML code. For example, an use case
-might be sending an event when a job has failed:
+You can send Signalfx events and/or from workflows. Please note
+how the `events` and `metrics fields are a string containing YAML code. For example, an use case
+might be sending an event and some metrics when a job has failed:
 
 ```yaml
 steps:
@@ -23,9 +23,21 @@ steps:
     run: this-will-fail
   - name: Signalfx
     if: failure()
-    uses: RentTheRunway/signalfx-reporting-action@v1
+    uses: RentTheRunway/signalfx-reporting-action@v2
     with:
       token: ${{ secrets.SIGNALFX_TOKEN }}
+      metrics: |
+            - type: "counter"
+              name: "test.workflow.runtime"
+              value: ${{ env.RUN_TIME }} 
+              dimensions:
+                pr: true
+            - type: "gauge"
+              name: "test.workflow.cpu"
+              value: 98.5
+            - type: "cumulative_counter"
+              name: "test.workflow.executions"
+              value: 1
       events: |
         - eventType: 'Test'
           dimensions: {dimension1: 'value1', dimension2: 'value2'}

@@ -15,7 +15,7 @@ inputs:
     description: 'A list of metric objects to send, see README for details.'
     default: '[]'
 runs:
-  using: 'node12'
+  using: 'node16'
   main: 'dist/index.js'
 branding:
   icon: 'bar-chart-2'
