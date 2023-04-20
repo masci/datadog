@@ -108,7 +108,14 @@ describe('end-to-end tests', () => {
     process.env['INPUT_METRICS'] = yaml.safeDump([
       {
         type: 'count',
-        name: 'test.builds.count',
+        name: 'test.builds.count2',
+        value: 1.0,
+        tags: ['foo:bar'],
+        host: 'example.com'
+      },
+      {
+        type: 'distribution',
+        name: 'test.builds.distribution',
         value: 1.0,
         tags: ['foo:bar'],
         host: 'example.com'
@@ -151,6 +158,7 @@ describe('end-to-end tests', () => {
       console.log(cp.execSync(`node ${ip}`, options).toString())
     } catch (e) {
       console.log(e.output.toString())
+      throw e
     }
   })
 })

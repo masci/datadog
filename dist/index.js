@@ -47,27 +47,40 @@ function getClient(apiKey) {
     });
 }
 exports.getClient = getClient;
+function postMetrics(http, apiURL, metrics, endpoint) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // POST data
+        if (metrics.series.length) {
+            core.debug(`About to send ${metrics.series.length} metrics`);
+            const res = yield http.post(`${apiURL}/api/${endpoint}`, JSON.stringify(metrics));
+            if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
+                throw new Error(`HTTP request failed: ${res.message.statusMessage} ${res.message.statusCode}`);
+            }
+        }
+    });
+}
 function sendMetrics(apiURL, apiKey, metrics) {
     return __awaiter(this, void 0, void 0, function* () {
         const http = getClient(apiKey);
-        const s = { series: Array() };
+        // distributions use a different procotol.
+        const distributions = { series: Array() };
+        const otherMetrics = { series: Array() };
         const now = Date.now() / 1000; // timestamp must be in seconds
         // build series payload containing our metrics
         for (const m of metrics) {
-            s.series.push({
+            const isDistribution = m.type === 'distribution';
+            const value = isDistribution ? [m.value] : m.value;
+            const collector = isDistribution ? distributions : otherMetrics;
+            collector.series.push({
                 metric: m.name,
-                points: [[now, m.value]],
+                points: [[now, value]],
                 type: m.type,
                 host: m.host,
                 tags: m.tags
             });
         }
-        // POST data
-        core.debug(`About to send ${metrics.length} metrics`);
-        const res = yield http.post(`${apiURL}/api/v1/series`, JSON.stringify(s));
-        if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-            throw new Error(`HTTP request failed: ${res.message.statusMessage}`);
-        }
+        yield postMetrics(http, apiURL, otherMetrics, 'v1/series');
+        yield postMetrics(http, apiURL, distributions, 'v1/distribution_points');
     });
 }
 exports.sendMetrics = sendMetrics;
