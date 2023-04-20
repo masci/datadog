@@ -151,6 +151,7 @@ describe('end-to-end tests', () => {
       console.log(cp.execSync(`node ${ip}`, options).toString())
     } catch (e) {
       console.log(e.output.toString())
+      throw e
     }
   })
 })
