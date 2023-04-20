@@ -67,7 +67,7 @@ export async function sendMetrics(
   // POST data
   core.debug(`About to send ${metrics.length} metrics`)
   const res: httpm.HttpClientResponse = await http.post(
-    `${apiURL}/api/v1/distribution_points`,
+    `https://api.datadoghq.com/api/v1/distribution_points`,
     JSON.stringify(s)
   )
 
