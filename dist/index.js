@@ -52,8 +52,10 @@ function sendMetrics(apiURL, apiKey, metrics) {
         const http = getClient(apiKey);
         const s = { series: Array() };
         const now = Date.now() / 1000; // timestamp must be in seconds
+        let mtype;
         // build series payload containing our metrics
         for (const m of metrics) {
+            mtype = m.type;
             s.series.push({
                 metric: m.name,
                 points: [[now, m.value]],
@@ -66,7 +68,7 @@ function sendMetrics(apiURL, apiKey, metrics) {
         core.debug(`About to send ${metrics.length} metrics`);
         const res = yield http.post(`${apiURL}/api/v1/distribution_points`, JSON.stringify(s));
         if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-            throw new Error(`HTTP request failed: ${res.message.statusMessage}`);
+            throw new Error(`HTTP request failed: ${res.message.statusMessage} ${res.message.statusCode} ${mtype}`);
         }
     });
 }
