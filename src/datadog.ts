@@ -57,7 +57,7 @@ export async function sendMetrics(
     mtype = m.type
     s.series.push({
       metric: m.name,
-      points: [[now, m.value]],
+      points: [[now, [m.value]]],
       type: m.type,
       host: m.host,
       tags: m.tags
@@ -67,7 +67,7 @@ export async function sendMetrics(
   // POST data
   core.debug(`About to send ${metrics.length} metrics`)
   const res: httpm.HttpClientResponse = await http.post(
-    `https://api.datadoghq.com/api/v1/distribution_points`,
+    `${apiURL}/api/v1/distribution_points`,
     JSON.stringify(s)
   )
 

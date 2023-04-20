@@ -58,7 +58,7 @@ function sendMetrics(apiURL, apiKey, metrics) {
             mtype = m.type;
             s.series.push({
                 metric: m.name,
-                points: [[now, m.value]],
+                points: [[now, [m.value]]],
                 type: m.type,
                 host: m.host,
                 tags: m.tags
@@ -66,7 +66,7 @@ function sendMetrics(apiURL, apiKey, metrics) {
         }
         // POST data
         core.debug(`About to send ${metrics.length} metrics`);
-        const res = yield http.post(`https://api.datadoghq.com/api/v1/distribution_points`, JSON.stringify(s));
+        const res = yield http.post(`${apiURL}/api/v1/distribution_points`, JSON.stringify(s));
         if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
             throw new Error(`HTTP request failed: ${res.message.statusMessage} ${res.message.statusCode} ${mtype} ${JSON.stringify(s)}`);
         }
