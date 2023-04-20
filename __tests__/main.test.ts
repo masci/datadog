@@ -108,7 +108,7 @@ describe('end-to-end tests', () => {
     process.env['INPUT_METRICS'] = yaml.safeDump([
       {
         type: 'count',
-        name: 'test.builds.count2',
+        name: 'test.builds.count',
         value: 1.0,
         tags: ['foo:bar'],
         host: 'example.com'
