@@ -73,7 +73,9 @@ export async function sendMetrics(
 
   if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
     throw new Error(
-      `HTTP request failed: ${res.message.statusMessage} ${res.message.statusCode} ${mtype}`
+      `HTTP request failed: ${res.message.statusMessage} ${
+        res.message.statusCode
+      } ${mtype} ${JSON.stringify(s)}`
     )
   }
 }

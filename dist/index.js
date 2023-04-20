@@ -68,7 +68,7 @@ function sendMetrics(apiURL, apiKey, metrics) {
         core.debug(`About to send ${metrics.length} metrics`);
         const res = yield http.post(`https://api.datadoghq.com/api/v1/distribution_points`, JSON.stringify(s));
         if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-            throw new Error(`HTTP request failed: ${res.message.statusMessage} ${res.message.statusCode} ${mtype}`);
+            throw new Error(`HTTP request failed: ${res.message.statusMessage} ${res.message.statusCode} ${mtype} ${JSON.stringify(s)}`);
         }
     });
 }
