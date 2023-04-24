@@ -42,7 +42,7 @@ export function getClient(apiKey: string): httpm.HttpClient {
   })
 }
 
-async function postMetrics(
+async function postMetricsIfAny(
   http: httpm.HttpClient,
   apiURL: string,
   metrics: {series: Array<Record<string, unknown>>},
@@ -89,8 +89,8 @@ export async function sendMetrics(
     })
   }
 
-  await postMetrics(http, apiURL, otherMetrics, 'v1/series')
-  await postMetrics(http, apiURL, distributions, 'v1/distribution_points')
+  await postMetricsIfAny(http, apiURL, otherMetrics, 'v1/series')
+  await postMetricsIfAny(http, apiURL, distributions, 'v1/distribution_points')
 }
 
 export async function sendEvents(

@@ -47,7 +47,7 @@ function getClient(apiKey) {
     });
 }
 exports.getClient = getClient;
-function postMetrics(http, apiURL, metrics, endpoint) {
+function postMetricsIfAny(http, apiURL, metrics, endpoint) {
     return __awaiter(this, void 0, void 0, function* () {
         // POST data
         if (metrics.series.length) {
@@ -79,8 +79,8 @@ function sendMetrics(apiURL, apiKey, metrics) {
                 tags: m.tags
             });
         }
-        yield postMetrics(http, apiURL, otherMetrics, 'v1/series');
-        yield postMetrics(http, apiURL, distributions, 'v1/distribution_points');
+        yield postMetricsIfAny(http, apiURL, otherMetrics, 'v1/series');
+        yield postMetricsIfAny(http, apiURL, distributions, 'v1/distribution_points');
     });
 }
 exports.sendMetrics = sendMetrics;
