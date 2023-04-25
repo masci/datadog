@@ -112,6 +112,13 @@ describe('end-to-end tests', () => {
         value: 1.0,
         tags: ['foo:bar'],
         host: 'example.com'
+      },
+      {
+        type: 'distribution',
+        name: 'test.builds.distribution',
+        value: 1.0,
+        tags: ['foo:bar'],
+        host: 'example.com'
       }
     ])
     process.env['INPUT_EVENTS'] = yaml.safeDump([
@@ -151,6 +158,7 @@ describe('end-to-end tests', () => {
       console.log(cp.execSync(`node ${ip}`, options).toString())
     } catch (e) {
       console.log(e.output.toString())
+      throw e
     }
   })
 })
