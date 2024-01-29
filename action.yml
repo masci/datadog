@@ -24,7 +24,7 @@ inputs:
     description: 'A list of log objects to send, see docs for details'
     default: '[]'
 runs:
-  using: 'node16'
+  using: 'node20'
   main: 'dist/index.js'
 branding:
   icon: 'bar-chart-2'
