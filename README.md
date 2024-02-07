@@ -6,8 +6,9 @@ This Action lets you send events and metrics to Datadog from a GitHub workflow.
 
 ## Usage
 
-The action can send metrics and events to any Datadog site by setting the `api-url` param. When
-omitted, it defaults to the US endpoint: `https://api.datadoghq.com`.
+> [!IMPORTANT]  
+> The action can send metrics and events to any Datadog site by setting the `api-url` param. When
+> omitted, it defaults to the US endpoint: `https://api.datadoghq.com`.
 
 Please note how `metrics` is defined as a string containing YAML code - this
 allows to send more than one metric at once if needed. To send one metric,
