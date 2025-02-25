@@ -23,6 +23,10 @@ inputs:
   logs:
     description: 'A list of log objects to send, see docs for details'
     default: '[]'
+  ignore-timeouts:
+    description: 'Ignore timeout errors and continue execution'
+    required: false
+    default: 'false'
 runs:
   using: 'node20'
   main: 'dist/index.js'
