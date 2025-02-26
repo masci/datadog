@@ -6,7 +6,7 @@ This Action lets you send events and metrics to Datadog from a GitHub workflow.
 
 ## Usage
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > The action can send metrics and events to any Datadog site by setting the `api-url` param. When
 > omitted, it defaults to the US endpoint: `https://api.datadoghq.com`.
 
@@ -98,6 +98,53 @@ steps:
           hostname: "i-012345678"
           message: "{\"message\":\"2019-11-19T14:37:58,995 ERROR [process.name][20081] Hello World\", \"level\":\"error\"}"
           service: "payment"
+```
+
+## Inputs
+
+```yaml
+- name: Datadog
+  uses: masci/datadog@v1
+  with:
+    # The api key to use.
+    # Type: string
+    # Required
+    api-key: ${{ secrets.DATADOG_API_KEY }}
+
+    # The ingestion endpoint to use, US by default.
+    # Type: string
+    # Default: 'https://api.datadoghq.com'
+    api-url: ''
+
+    # The URL of the Log API endpoint.
+    # Type: string
+    # Default: 'https://http-intake.logs.datadoghq.com'
+    log-api-url: ''
+
+    # If true, timeout errors will be ignored and step will always succeed
+    # Type: boolean
+    # Default: false
+    ignore-timeouts:
+
+    # A list of metric objects to send, defined in YAML format
+    # Type: string
+    # Default: '[]'
+    metrics: ''
+
+    # A list of event objects to send, defined in YAML format.
+    # Type: string
+    # Default: '[]'
+    events: ''
+
+    # A list of service check objects to send, defined in YAML format.
+    # Type: string
+    # Default: '[]'
+    service-checks: ''
+
+    # A list of log objects to send, defined in YAML format.
+    # Type: string
+    # Default: '[]'
+    logs: ''
 ```
 
 ## Development
