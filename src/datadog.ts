@@ -42,24 +42,42 @@ export function getClient(apiKey: string): httpm.HttpClient {
   })
 }
 
+function isTimeoutError(error: Error): boolean {
+  return error.message.includes('timeout') || error.message.includes('Timeout')
+}
+
 async function postMetricsIfAny(
   http: httpm.HttpClient,
   apiURL: string,
   metrics: {series: Array<Record<string, unknown>>},
-  endpoint: string
+  endpoint: string,
+  ignoreTimeouts: boolean
 ): Promise<void> {
   // POST data
   if (metrics.series.length) {
-    core.debug(`About to send ${metrics.series.length} metrics`)
-    const res: httpm.HttpClientResponse = await http.post(
-      `${apiURL}/api/${endpoint}`,
-      JSON.stringify(metrics)
-    )
-
-    if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-      throw new Error(
-        `HTTP request failed: ${res.message.statusMessage} ${res.message.statusCode}`
+    try {
+      core.debug(`About to send ${metrics.series.length} metrics`)
+      const res: httpm.HttpClientResponse = await http.post(
+        `${apiURL}/api/${endpoint}`,
+        JSON.stringify(metrics)
       )
+
+      if (
+        res.message.statusCode === undefined ||
+        res.message.statusCode >= 400
+      ) {
+        throw new Error(
+          `HTTP request failed: ${res.message.statusMessage} ${res.message.statusCode}`
+        )
+      }
+    } catch (error) {
+      if (ignoreTimeouts && isTimeoutError(error)) {
+        core.warning(
+          `Timeout occurred while sending metrics, but continuing due to ignore-timeout setting`
+        )
+        return
+      }
+      throw error
     }
   }
 }
@@ -67,7 +85,8 @@ async function postMetricsIfAny(
 export async function sendMetrics(
   apiURL: string,
   apiKey: string,
-  metrics: Metric[]
+  metrics: Metric[],
+  ignoreTimeouts: boolean
 ): Promise<void> {
   const http: httpm.HttpClient = getClient(apiKey)
   // distributions use a different procotol.
@@ -89,27 +108,53 @@ export async function sendMetrics(
     })
   }
 
-  await postMetricsIfAny(http, apiURL, otherMetrics, 'v1/series')
-  await postMetricsIfAny(http, apiURL, distributions, 'v1/distribution_points')
+  await postMetricsIfAny(
+    http,
+    apiURL,
+    otherMetrics,
+    'v1/series',
+    ignoreTimeouts
+  )
+  await postMetricsIfAny(
+    http,
+    apiURL,
+    distributions,
+    'v1/distribution_points',
+    ignoreTimeouts
+  )
 }
 
 export async function sendEvents(
   apiURL: string,
   apiKey: string,
-  events: Event[]
+  events: Event[],
+  ignoreTimeouts: boolean
 ): Promise<void> {
   const http: httpm.HttpClient = getClient(apiKey)
   let errors = 0
 
   core.debug(`About to send ${events.length} events`)
   for (const ev of events) {
-    const res: httpm.HttpClientResponse = await http.post(
-      `${apiURL}/api/v1/events`,
-      JSON.stringify(ev)
-    )
-    if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-      errors++
-      core.error(`HTTP request failed: ${res.message.statusMessage}`)
+    try {
+      const res: httpm.HttpClientResponse = await http.post(
+        `${apiURL}/api/v1/events`,
+        JSON.stringify(ev)
+      )
+      if (
+        res.message.statusCode === undefined ||
+        res.message.statusCode >= 400
+      ) {
+        errors++
+        core.error(`HTTP request failed: ${res.message.statusMessage}`)
+      }
+    } catch (error) {
+      if (ignoreTimeouts && isTimeoutError(error)) {
+        core.warning(
+          `Timeout occurred while sending event, but continuing due to ignore-timeout setting`
+        )
+        continue
+      }
+      throw error
     }
   }
 
@@ -121,20 +166,34 @@ export async function sendEvents(
 export async function sendServiceChecks(
   apiURL: string,
   apiKey: string,
-  serviceChecks: ServiceCheck[]
+  serviceChecks: ServiceCheck[],
+  ignoreTimeouts: boolean
 ): Promise<void> {
   const http: httpm.HttpClient = getClient(apiKey)
   let errors = 0
 
   core.debug(`About to send ${serviceChecks.length} service checks`)
   for (const sc of serviceChecks) {
-    const res: httpm.HttpClientResponse = await http.post(
-      `${apiURL}/api/v1/check_run`,
-      JSON.stringify(sc)
-    )
-    if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-      errors++
-      core.error(`HTTP request failed: ${res.message.statusMessage}`)
+    try {
+      const res: httpm.HttpClientResponse = await http.post(
+        `${apiURL}/api/v1/check_run`,
+        JSON.stringify(sc)
+      )
+      if (
+        res.message.statusCode === undefined ||
+        res.message.statusCode >= 400
+      ) {
+        errors++
+        core.error(`HTTP request failed: ${res.message.statusMessage}`)
+      }
+    } catch (error) {
+      if (ignoreTimeouts && isTimeoutError(error)) {
+        core.warning(
+          `Timeout occurred while sending service check, but continuing due to ignore-timeout setting`
+        )
+        continue
+      }
+      throw error
     }
   }
 
@@ -148,21 +207,35 @@ export async function sendServiceChecks(
 export async function sendLogs(
   logApiURL: string,
   apiKey: string,
-  logs: Log[]
+  logs: Log[],
+  ignoreTimeouts: boolean
 ): Promise<void> {
   const http: httpm.HttpClient = getClient(apiKey)
   let errors = 0
 
   core.debug(`About to send ${logs.length} logs`)
   for (const log of logs) {
-    const res: httpm.HttpClientResponse = await http.post(
-      `${logApiURL}/v1/input`,
-      JSON.stringify(log)
-    )
-    if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-      errors++
-      core.error(`HTTP request failed: ${res.message.statusMessage}`)
-      throw new Error(`Failed sending ${errors} out of ${logs.length} events`)
+    try {
+      const res: httpm.HttpClientResponse = await http.post(
+        `${logApiURL}/v1/input`,
+        JSON.stringify(log)
+      )
+      if (
+        res.message.statusCode === undefined ||
+        res.message.statusCode >= 400
+      ) {
+        errors++
+        core.error(`HTTP request failed: ${res.message.statusMessage}`)
+        throw new Error(`Failed sending ${errors} out of ${logs.length} events`)
+      }
+    } catch (error) {
+      if (ignoreTimeouts && isTimeoutError(error)) {
+        core.warning(
+          `Timeout occurred while sending logs, but continuing due to ignore-timeout setting`
+        )
+        continue
+      }
+      throw error
     }
   }
 

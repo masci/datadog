@@ -24,7 +24,8 @@ describe('unit-tests', () => {
     expect(dd.sendMetrics).toHaveBeenCalledWith(
       'https://api.datadoghq.com',
       'fooBarBaz',
-      []
+      [],
+      false
     )
   })
 
@@ -34,7 +35,8 @@ describe('unit-tests', () => {
     expect(dd.sendMetrics).toHaveBeenCalledWith(
       'http://example.com',
       'fooBarBaz',
-      []
+      [],
+      false
     )
     process.env['INPUT_API-URL'] = ''
   })
@@ -44,7 +46,8 @@ describe('unit-tests', () => {
     expect(dd.sendLogs).toHaveBeenCalledWith(
       'https://http-intake.logs.datadoghq.com',
       'fooBarBaz',
-      []
+      [],
+      false
     )
   })
 
@@ -54,7 +57,8 @@ describe('unit-tests', () => {
     expect(dd.sendLogs).toHaveBeenCalledWith(
       'http://example.com',
       'fooBarBaz',
-      []
+      [],
+      false
     )
     process.env['INPUT_LOG-API-URL'] = ''
   })
@@ -64,22 +68,26 @@ describe('unit-tests', () => {
     expect(dd.sendMetrics).toHaveBeenCalledWith(
       'https://api.datadoghq.com',
       'fooBarBaz',
-      []
+      [],
+      false
     )
     expect(dd.sendEvents).toHaveBeenCalledWith(
       'https://api.datadoghq.com',
       'fooBarBaz',
-      []
+      [],
+      false
     )
     expect(dd.sendServiceChecks).toHaveBeenCalledWith(
       'https://api.datadoghq.com',
       'fooBarBaz',
-      []
+      [],
+      false
     )
     expect(dd.sendLogs).toHaveBeenCalledWith(
       'https://http-intake.logs.datadoghq.com',
       'fooBarBaz',
-      []
+      [],
+      false
     )
   })
 })
