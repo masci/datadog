@@ -47,19 +47,32 @@ function getClient(apiKey) {
     });
 }
 exports.getClient = getClient;
-function postMetricsIfAny(http, apiURL, metrics, endpoint) {
+function isTimeoutError(error) {
+    return error.message.includes('timeout') || error.message.includes('Timeout');
+}
+function postMetricsIfAny(http, apiURL, metrics, endpoint, ignoreTimeouts) {
     return __awaiter(this, void 0, void 0, function* () {
         // POST data
         if (metrics.series.length) {
-            core.debug(`About to send ${metrics.series.length} metrics`);
-            const res = yield http.post(`${apiURL}/api/${endpoint}`, JSON.stringify(metrics));
-            if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-                throw new Error(`HTTP request failed: ${res.message.statusMessage} ${res.message.statusCode}`);
+            try {
+                core.debug(`About to send ${metrics.series.length} metrics`);
+                const res = yield http.post(`${apiURL}/api/${endpoint}`, JSON.stringify(metrics));
+                if (res.message.statusCode === undefined ||
+                    res.message.statusCode >= 400) {
+                    throw new Error(`HTTP request failed: ${res.message.statusMessage} ${res.message.statusCode}`);
+                }
+            }
+            catch (error) {
+                if (ignoreTimeouts && isTimeoutError(error)) {
+                    core.warning(`Timeout occurred while sending metrics, but continuing due to ignore-timeout setting`);
+                    return;
+                }
+                throw error;
             }
         }
     });
 }
-function sendMetrics(apiURL, apiKey, metrics) {
+function sendMetrics(apiURL, apiKey, metrics, ignoreTimeouts) {
     return __awaiter(this, void 0, void 0, function* () {
         const http = getClient(apiKey);
         // distributions use a different procotol.
@@ -79,21 +92,31 @@ function sendMetrics(apiURL, apiKey, metrics) {
                 tags: m.tags
             });
         }
-        yield postMetricsIfAny(http, apiURL, otherMetrics, 'v1/series');
-        yield postMetricsIfAny(http, apiURL, distributions, 'v1/distribution_points');
+        yield postMetricsIfAny(http, apiURL, otherMetrics, 'v1/series', ignoreTimeouts);
+        yield postMetricsIfAny(http, apiURL, distributions, 'v1/distribution_points', ignoreTimeouts);
     });
 }
 exports.sendMetrics = sendMetrics;
-function sendEvents(apiURL, apiKey, events) {
+function sendEvents(apiURL, apiKey, events, ignoreTimeouts) {
     return __awaiter(this, void 0, void 0, function* () {
         const http = getClient(apiKey);
         let errors = 0;
         core.debug(`About to send ${events.length} events`);
         for (const ev of events) {
-            const res = yield http.post(`${apiURL}/api/v1/events`, JSON.stringify(ev));
-            if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-                errors++;
-                core.error(`HTTP request failed: ${res.message.statusMessage}`);
+            try {
+                const res = yield http.post(`${apiURL}/api/v1/events`, JSON.stringify(ev));
+                if (res.message.statusCode === undefined ||
+                    res.message.statusCode >= 400) {
+                    errors++;
+                    core.error(`HTTP request failed: ${res.message.statusMessage}`);
+                }
+            }
+            catch (error) {
+                if (ignoreTimeouts && isTimeoutError(error)) {
+                    core.warning(`Timeout occurred while sending event, but continuing due to ignore-timeout setting`);
+                    continue;
+                }
+                throw error;
             }
         }
         if (errors > 0) {
@@ -102,16 +125,26 @@ function sendEvents(apiURL, apiKey, events) {
     });
 }
 exports.sendEvents = sendEvents;
-function sendServiceChecks(apiURL, apiKey, serviceChecks) {
+function sendServiceChecks(apiURL, apiKey, serviceChecks, ignoreTimeouts) {
     return __awaiter(this, void 0, void 0, function* () {
         const http = getClient(apiKey);
         let errors = 0;
         core.debug(`About to send ${serviceChecks.length} service checks`);
         for (const sc of serviceChecks) {
-            const res = yield http.post(`${apiURL}/api/v1/check_run`, JSON.stringify(sc));
-            if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-                errors++;
-                core.error(`HTTP request failed: ${res.message.statusMessage}`);
+            try {
+                const res = yield http.post(`${apiURL}/api/v1/check_run`, JSON.stringify(sc));
+                if (res.message.statusCode === undefined ||
+                    res.message.statusCode >= 400) {
+                    errors++;
+                    core.error(`HTTP request failed: ${res.message.statusMessage}`);
+                }
+            }
+            catch (error) {
+                if (ignoreTimeouts && isTimeoutError(error)) {
+                    core.warning(`Timeout occurred while sending service check, but continuing due to ignore-timeout setting`);
+                    continue;
+                }
+                throw error;
             }
         }
         if (errors > 0) {
@@ -120,17 +153,27 @@ function sendServiceChecks(apiURL, apiKey, serviceChecks) {
     });
 }
 exports.sendServiceChecks = sendServiceChecks;
-function sendLogs(logApiURL, apiKey, logs) {
+function sendLogs(logApiURL, apiKey, logs, ignoreTimeouts) {
     return __awaiter(this, void 0, void 0, function* () {
         const http = getClient(apiKey);
         let errors = 0;
         core.debug(`About to send ${logs.length} logs`);
         for (const log of logs) {
-            const res = yield http.post(`${logApiURL}/v1/input`, JSON.stringify(log));
-            if (res.message.statusCode === undefined || res.message.statusCode >= 400) {
-                errors++;
-                core.error(`HTTP request failed: ${res.message.statusMessage}`);
-                throw new Error(`Failed sending ${errors} out of ${logs.length} events`);
+            try {
+                const res = yield http.post(`${logApiURL}/v1/input`, JSON.stringify(log));
+                if (res.message.statusCode === undefined ||
+                    res.message.statusCode >= 400) {
+                    errors++;
+                    core.error(`HTTP request failed: ${res.message.statusMessage}`);
+                    throw new Error(`Failed sending ${errors} out of ${logs.length} events`);
+                }
+            }
+            catch (error) {
+                if (ignoreTimeouts && isTimeoutError(error)) {
+                    core.warning(`Timeout occurred while sending logs, but continuing due to ignore-timeout setting`);
+                    continue;
+                }
+                throw error;
             }
         }
         if (errors > 0) {
@@ -222,21 +265,18 @@ const yaml = __importStar(__nccwpck_require__(1917));
 const dd = __importStar(__nccwpck_require__(1401));
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
-        // try {
         const apiKey = core.getInput('api-key', { required: true });
         const apiURL = core.getInput('api-url') || 'https://api.datadoghq.com';
+        const ignoreTimeouts = core.getInput('ignore-timeouts') === 'false';
         const metrics = yaml.safeLoad(core.getInput('metrics')) || [];
-        yield dd.sendMetrics(apiURL, apiKey, metrics);
+        yield dd.sendMetrics(apiURL, apiKey, metrics, ignoreTimeouts);
         const events = yaml.safeLoad(core.getInput('events')) || [];
-        yield dd.sendEvents(apiURL, apiKey, events);
+        yield dd.sendEvents(apiURL, apiKey, events, ignoreTimeouts);
         const serviceChecks = yaml.safeLoad(core.getInput('service-checks')) || [];
-        yield dd.sendServiceChecks(apiURL, apiKey, serviceChecks);
+        yield dd.sendServiceChecks(apiURL, apiKey, serviceChecks, ignoreTimeouts);
         const logApiURL = core.getInput('log-api-url') || 'https://http-intake.logs.datadoghq.com';
         const logs = yaml.safeLoad(core.getInput('logs')) || [];
-        yield dd.sendLogs(logApiURL, apiKey, logs);
-        // } catch (error) {
-        //   core.setFailed(`Run failed: ${error.message}`)
-        // }
+        yield dd.sendLogs(logApiURL, apiKey, logs, ignoreTimeouts);
     });
 }
 exports.run = run;
