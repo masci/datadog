@@ -126,6 +126,11 @@ steps:
     # Default: false
     ignore-timeouts:
 
+    # Timeout value in milliseconds for the HTTP client.
+    # Type: number
+    # Default: 30000 (30 seconds)
+    timeout:
+
     # A list of metric objects to send, defined in YAML format
     # Type: string
     # Default: '[]'
