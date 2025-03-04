@@ -33,17 +33,20 @@ export interface Log {
   service: string
 }
 
-export function getClient(apiKey: string): httpm.HttpClient {
+export function getClient(apiKey: string, timeout: number): httpm.HttpClient {
   return new httpm.HttpClient('dd-http-client', [], {
     headers: {
       'DD-API-KEY': apiKey,
       'Content-Type': 'application/json'
-    }
+    },
+    socketTimeout: timeout
   })
 }
 
 function isTimeoutError(error: Error): boolean {
-  return error.message.includes('timeout') || error.message.includes('Timeout')
+  // force the error into a string so it both works for Error instances and plain strings
+  const error_msg = `${error}`
+  return error_msg.includes('timeout') || error_msg.includes('Timeout')
 }
 
 async function postMetricsIfAny(
@@ -56,7 +59,9 @@ async function postMetricsIfAny(
   // POST data
   if (metrics.series.length) {
     try {
-      core.debug(`About to send ${metrics.series.length} metrics`)
+      core.debug(
+        `About to send ${metrics.series.length} metrics to ${apiURL}/api/${endpoint}`
+      )
       const res: httpm.HttpClientResponse = await http.post(
         `${apiURL}/api/${endpoint}`,
         JSON.stringify(metrics)
@@ -86,9 +91,10 @@ export async function sendMetrics(
   apiURL: string,
   apiKey: string,
   metrics: Metric[],
-  ignoreTimeouts: boolean
+  ignoreTimeouts: boolean,
+  timeout: number
 ): Promise<void> {
-  const http: httpm.HttpClient = getClient(apiKey)
+  const http: httpm.HttpClient = getClient(apiKey, timeout)
   // distributions use a different procotol.
   const distributions = {series: Array()}
   const otherMetrics = {series: Array()}
@@ -128,12 +134,13 @@ export async function sendEvents(
   apiURL: string,
   apiKey: string,
   events: Event[],
-  ignoreTimeouts: boolean
+  ignoreTimeouts: boolean,
+  timeout: number
 ): Promise<void> {
-  const http: httpm.HttpClient = getClient(apiKey)
+  const http: httpm.HttpClient = getClient(apiKey, timeout)
   let errors = 0
 
-  core.debug(`About to send ${events.length} events`)
+  core.debug(`About to send ${events.length} events to ${apiURL}/api/v1/events`)
   for (const ev of events) {
     try {
       const res: httpm.HttpClientResponse = await http.post(
@@ -167,12 +174,15 @@ export async function sendServiceChecks(
   apiURL: string,
   apiKey: string,
   serviceChecks: ServiceCheck[],
-  ignoreTimeouts: boolean
+  ignoreTimeouts: boolean,
+  timeout: number
 ): Promise<void> {
-  const http: httpm.HttpClient = getClient(apiKey)
+  const http: httpm.HttpClient = getClient(apiKey, timeout)
   let errors = 0
 
-  core.debug(`About to send ${serviceChecks.length} service checks`)
+  core.debug(
+    `About to send ${serviceChecks.length} service checks to ${apiURL}/api/v1/check_run`
+  )
   for (const sc of serviceChecks) {
     try {
       const res: httpm.HttpClientResponse = await http.post(
@@ -208,12 +218,13 @@ export async function sendLogs(
   logApiURL: string,
   apiKey: string,
   logs: Log[],
-  ignoreTimeouts: boolean
+  ignoreTimeouts: boolean,
+  timeout: number
 ): Promise<void> {
-  const http: httpm.HttpClient = getClient(apiKey)
+  const http: httpm.HttpClient = getClient(apiKey, timeout)
   let errors = 0
 
-  core.debug(`About to send ${logs.length} logs`)
+  core.debug(`About to send ${logs.length} logs to ${logApiURL}/v1/input`)
   for (const log of logs) {
     try {
       const res: httpm.HttpClientResponse = await http.post(

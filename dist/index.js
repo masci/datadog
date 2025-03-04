@@ -38,24 +38,27 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.sendLogs = exports.sendServiceChecks = exports.sendEvents = exports.sendMetrics = exports.getClient = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const httpm = __importStar(__nccwpck_require__(9925));
-function getClient(apiKey) {
+function getClient(apiKey, timeout) {
     return new httpm.HttpClient('dd-http-client', [], {
         headers: {
             'DD-API-KEY': apiKey,
             'Content-Type': 'application/json'
-        }
+        },
+        socketTimeout: timeout
     });
 }
 exports.getClient = getClient;
 function isTimeoutError(error) {
-    return error.message.includes('timeout') || error.message.includes('Timeout');
+    // force the error into a string so it both works for Error instances and plain strings
+    const error_msg = `${error}`;
+    return error_msg.includes('timeout') || error_msg.includes('Timeout');
 }
 function postMetricsIfAny(http, apiURL, metrics, endpoint, ignoreTimeouts) {
     return __awaiter(this, void 0, void 0, function* () {
         // POST data
         if (metrics.series.length) {
             try {
-                core.debug(`About to send ${metrics.series.length} metrics`);
+                core.debug(`About to send ${metrics.series.length} metrics ${ignoreTimeouts}`);
                 const res = yield http.post(`${apiURL}/api/${endpoint}`, JSON.stringify(metrics));
                 if (res.message.statusCode === undefined ||
                     res.message.statusCode >= 400) {
@@ -72,9 +75,9 @@ function postMetricsIfAny(http, apiURL, metrics, endpoint, ignoreTimeouts) {
         }
     });
 }
-function sendMetrics(apiURL, apiKey, metrics, ignoreTimeouts) {
+function sendMetrics(apiURL, apiKey, metrics, ignoreTimeouts, timeout) {
     return __awaiter(this, void 0, void 0, function* () {
-        const http = getClient(apiKey);
+        const http = getClient(apiKey, timeout);
         // distributions use a different procotol.
         const distributions = { series: Array() };
         const otherMetrics = { series: Array() };
@@ -97,9 +100,9 @@ function sendMetrics(apiURL, apiKey, metrics, ignoreTimeouts) {
     });
 }
 exports.sendMetrics = sendMetrics;
-function sendEvents(apiURL, apiKey, events, ignoreTimeouts) {
+function sendEvents(apiURL, apiKey, events, ignoreTimeouts, timeout) {
     return __awaiter(this, void 0, void 0, function* () {
-        const http = getClient(apiKey);
+        const http = getClient(apiKey, timeout);
         let errors = 0;
         core.debug(`About to send ${events.length} events`);
         for (const ev of events) {
@@ -125,9 +128,9 @@ function sendEvents(apiURL, apiKey, events, ignoreTimeouts) {
     });
 }
 exports.sendEvents = sendEvents;
-function sendServiceChecks(apiURL, apiKey, serviceChecks, ignoreTimeouts) {
+function sendServiceChecks(apiURL, apiKey, serviceChecks, ignoreTimeouts, timeout) {
     return __awaiter(this, void 0, void 0, function* () {
-        const http = getClient(apiKey);
+        const http = getClient(apiKey, timeout);
         let errors = 0;
         core.debug(`About to send ${serviceChecks.length} service checks`);
         for (const sc of serviceChecks) {
@@ -153,9 +156,9 @@ function sendServiceChecks(apiURL, apiKey, serviceChecks, ignoreTimeouts) {
     });
 }
 exports.sendServiceChecks = sendServiceChecks;
-function sendLogs(logApiURL, apiKey, logs, ignoreTimeouts) {
+function sendLogs(logApiURL, apiKey, logs, ignoreTimeouts, timeout) {
     return __awaiter(this, void 0, void 0, function* () {
-        const http = getClient(apiKey);
+        const http = getClient(apiKey, timeout);
         let errors = 0;
         core.debug(`About to send ${logs.length} logs`);
         for (const log of logs) {
@@ -267,16 +270,17 @@ function run() {
     return __awaiter(this, void 0, void 0, function* () {
         const apiKey = core.getInput('api-key', { required: true });
         const apiURL = core.getInput('api-url') || 'https://api.datadoghq.com';
-        const ignoreTimeouts = core.getInput('ignore-timeouts') === 'false';
+        const ignoreTimeouts = core.getInput('ignore-timeouts') === 'true';
+        const timeout = parseInt(core.getInput('timeout')) || 30000;
         const metrics = yaml.safeLoad(core.getInput('metrics')) || [];
-        yield dd.sendMetrics(apiURL, apiKey, metrics, ignoreTimeouts);
+        yield dd.sendMetrics(apiURL, apiKey, metrics, ignoreTimeouts, timeout);
         const events = yaml.safeLoad(core.getInput('events')) || [];
-        yield dd.sendEvents(apiURL, apiKey, events, ignoreTimeouts);
+        yield dd.sendEvents(apiURL, apiKey, events, ignoreTimeouts, timeout);
         const serviceChecks = yaml.safeLoad(core.getInput('service-checks')) || [];
-        yield dd.sendServiceChecks(apiURL, apiKey, serviceChecks, ignoreTimeouts);
+        yield dd.sendServiceChecks(apiURL, apiKey, serviceChecks, ignoreTimeouts, timeout);
         const logApiURL = core.getInput('log-api-url') || 'https://http-intake.logs.datadoghq.com';
         const logs = yaml.safeLoad(core.getInput('logs')) || [];
-        yield dd.sendLogs(logApiURL, apiKey, logs, ignoreTimeouts);
+        yield dd.sendLogs(logApiURL, apiKey, logs, ignoreTimeouts, timeout);
     });
 }
 exports.run = run;

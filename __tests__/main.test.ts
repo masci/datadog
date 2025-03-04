@@ -25,7 +25,8 @@ describe('unit-tests', () => {
       'https://api.datadoghq.com',
       'fooBarBaz',
       [],
-      false
+      false,
+      30000
     )
   })
 
@@ -36,7 +37,8 @@ describe('unit-tests', () => {
       'http://example.com',
       'fooBarBaz',
       [],
-      false
+      false,
+      30000
     )
     process.env['INPUT_API-URL'] = ''
   })
@@ -47,7 +49,8 @@ describe('unit-tests', () => {
       'https://http-intake.logs.datadoghq.com',
       'fooBarBaz',
       [],
-      false
+      false,
+      30000
     )
   })
 
@@ -58,7 +61,8 @@ describe('unit-tests', () => {
       'http://example.com',
       'fooBarBaz',
       [],
-      false
+      false,
+      30000
     )
     process.env['INPUT_LOG-API-URL'] = ''
   })
@@ -69,25 +73,29 @@ describe('unit-tests', () => {
       'https://api.datadoghq.com',
       'fooBarBaz',
       [],
-      false
+      false,
+      30000
     )
     expect(dd.sendEvents).toHaveBeenCalledWith(
       'https://api.datadoghq.com',
       'fooBarBaz',
       [],
-      false
+      false,
+      30000
     )
     expect(dd.sendServiceChecks).toHaveBeenCalledWith(
       'https://api.datadoghq.com',
       'fooBarBaz',
       [],
-      false
+      false,
+      30000
     )
     expect(dd.sendLogs).toHaveBeenCalledWith(
       'https://http-intake.logs.datadoghq.com',
       'fooBarBaz',
       [],
-      false
+      false,
+      30000
     )
   })
 })
@@ -140,6 +148,37 @@ describe('end-to-end tests', () => {
         message:
           '2019-11-19T14:37:58,995 INFO [process.name][20081] Hello World',
         service: 'payment'
+      }
+    ])
+
+    const ip = path.join(__dirname, '..', 'lib', 'main.js')
+    const options: cp.ExecSyncOptions = {
+      env: process.env
+    }
+
+    try {
+      console.log(cp.execSync(`node ${ip}`, options).toString())
+    } catch (e) {
+      console.log(e.output.toString())
+      throw e
+    }
+  })
+  it('does not fail on timeout errors', () => {
+    process.env['INPUT_API-KEY'] = process.env['DD_API_KEY'] || ''
+    if (process.env['INPUT_API-KEY'] === '') {
+      return
+    }
+    process.env['INPUT_IGNORE-TIMEOUTS'] = 'true'
+    // Set an impossibly low timeout in order to force a client failure
+    process.env['INPUT_TIMEOUT'] = '10'
+
+    process.env['INPUT_METRICS'] = yaml.safeDump([
+      {
+        type: 'count',
+        name: 'test.builds.count',
+        value: 1.0,
+        tags: ['foo:bar'],
+        host: 'example.com'
       }
     ])
 

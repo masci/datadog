@@ -27,6 +27,10 @@ inputs:
     description: 'Ignore timeout errors and continue execution'
     required: false
     default: 'false'
+  timeout:
+    description: 'Timeout in milliseconds for the HTTP client'
+    required: false
+    default: '30'
 runs:
   using: 'node20'
   main: 'dist/index.js'
