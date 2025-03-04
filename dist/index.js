@@ -58,7 +58,7 @@ function postMetricsIfAny(http, apiURL, metrics, endpoint, ignoreTimeouts) {
         // POST data
         if (metrics.series.length) {
             try {
-                core.debug(`About to send ${metrics.series.length} metrics ${ignoreTimeouts}`);
+                core.debug(`About to send ${metrics.series.length} metrics to ${apiURL}/api/${endpoint}`);
                 const res = yield http.post(`${apiURL}/api/${endpoint}`, JSON.stringify(metrics));
                 if (res.message.statusCode === undefined ||
                     res.message.statusCode >= 400) {
@@ -104,7 +104,7 @@ function sendEvents(apiURL, apiKey, events, ignoreTimeouts, timeout) {
     return __awaiter(this, void 0, void 0, function* () {
         const http = getClient(apiKey, timeout);
         let errors = 0;
-        core.debug(`About to send ${events.length} events`);
+        core.debug(`About to send ${events.length} events to ${apiURL}/api/v1/events`);
         for (const ev of events) {
             try {
                 const res = yield http.post(`${apiURL}/api/v1/events`, JSON.stringify(ev));
@@ -132,7 +132,7 @@ function sendServiceChecks(apiURL, apiKey, serviceChecks, ignoreTimeouts, timeou
     return __awaiter(this, void 0, void 0, function* () {
         const http = getClient(apiKey, timeout);
         let errors = 0;
-        core.debug(`About to send ${serviceChecks.length} service checks`);
+        core.debug(`About to send ${serviceChecks.length} service checks to ${apiURL}/api/v1/check_run`);
         for (const sc of serviceChecks) {
             try {
                 const res = yield http.post(`${apiURL}/api/v1/check_run`, JSON.stringify(sc));
@@ -160,7 +160,7 @@ function sendLogs(logApiURL, apiKey, logs, ignoreTimeouts, timeout) {
     return __awaiter(this, void 0, void 0, function* () {
         const http = getClient(apiKey, timeout);
         let errors = 0;
-        core.debug(`About to send ${logs.length} logs`);
+        core.debug(`About to send ${logs.length} logs to ${logApiURL}/v1/input`);
         for (const log of logs) {
             try {
                 const res = yield http.post(`${logApiURL}/v1/input`, JSON.stringify(log));
