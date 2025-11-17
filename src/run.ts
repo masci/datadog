@@ -9,15 +9,15 @@ export async function run(): Promise<void> {
   const timeout: number = parseInt(core.getInput('timeout')) || 30000
 
   const metrics: dd.Metric[] =
-    (yaml.safeLoad(core.getInput('metrics')) as dd.Metric[]) || []
+    (yaml.load(core.getInput('metrics')) as dd.Metric[]) || []
   await dd.sendMetrics(apiURL, apiKey, metrics, ignoreTimeouts, timeout)
 
   const events: dd.Event[] =
-    (yaml.safeLoad(core.getInput('events')) as dd.Event[]) || []
+    (yaml.load(core.getInput('events')) as dd.Event[]) || []
   await dd.sendEvents(apiURL, apiKey, events, ignoreTimeouts, timeout)
 
   const serviceChecks: dd.ServiceCheck[] =
-    (yaml.safeLoad(core.getInput('service-checks')) as dd.ServiceCheck[]) || []
+    (yaml.load(core.getInput('service-checks')) as dd.ServiceCheck[]) || []
   await dd.sendServiceChecks(
     apiURL,
     apiKey,
@@ -28,7 +28,6 @@ export async function run(): Promise<void> {
 
   const logApiURL: string =
     core.getInput('log-api-url') || 'https://http-intake.logs.datadoghq.com'
-  const logs: dd.Log[] =
-    (yaml.safeLoad(core.getInput('logs')) as dd.Log[]) || []
+  const logs: dd.Log[] = (yaml.load(core.getInput('logs')) as dd.Log[]) || []
   await dd.sendLogs(logApiURL, apiKey, logs, ignoreTimeouts, timeout)
 }
