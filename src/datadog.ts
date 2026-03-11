@@ -43,7 +43,7 @@ export function getClient(apiKey: string, timeout: number): httpm.HttpClient {
   })
 }
 
-function isTimeoutError(error: Error): boolean {
+function isTimeoutError(error: unknown): boolean {
   // force the error into a string so it both works for Error instances and plain strings
   const error_msg = `${error}`
   return error_msg.includes('timeout') || error_msg.includes('Timeout')
