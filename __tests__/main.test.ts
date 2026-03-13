@@ -159,7 +159,9 @@ describe('end-to-end tests', () => {
     try {
       console.log(cp.execSync(`node ${ip}`, options).toString())
     } catch (e) {
-      console.log(e.output.toString())
+      if (e instanceof Error) {
+        console.log(e.message)
+      }
       throw e
     }
   })
@@ -190,7 +192,9 @@ describe('end-to-end tests', () => {
     try {
       console.log(cp.execSync(`node ${ip}`, options).toString())
     } catch (e) {
-      console.log(e.output.toString())
+      if (e instanceof Error) {
+        console.log(e.message)
+      }
       throw e
     }
   })
