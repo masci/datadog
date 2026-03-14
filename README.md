@@ -9,7 +9,7 @@ This Action lets you send events and metrics to Datadog from a GitHub workflow.
 > [!WARNING]
 > The default branch for this repository has been successfully renamed from `master` to `main`.
 > Please update any dependent workflows to use the new branch name (`@main`) or, preferably,
-> a specific version tag (e.g., `@v1`). While the old `@master` reference is temporarily maintained
+> a specific version tag (e.g., `@v2`). While the old `@master` reference is temporarily maintained
 > as a pointer to the latest release 1.9.3 for backward compatibility, please plan to switch
 > your workflows as soon as possible, as the `@master` reference will be retired in the future.
 
@@ -23,7 +23,7 @@ configure a job step like the following:
 
 ```yaml
 - name: Build count
-  uses: masci/datadog@v1
+  uses: masci/datadog@v2
   with:
     api-key: ${{ secrets.DATADOG_API_KEY }}
     metrics: |
@@ -43,12 +43,12 @@ might be sending an event when a job has failed:
 ```yaml
 steps:
   - name: checkout
-    uses: actions/checkout@v2
+    uses: actions/checkout@v4
   - name: build
     run: this-will-fail
   - name: Datadog
     if: failure()
-    uses: masci/datadog@v1
+    uses: masci/datadog@v2
     with:
       api-key: ${{ secrets.DATADOG_API_KEY }}
       events: |
@@ -67,12 +67,12 @@ might be sending when a job has failed:
 ```yaml
 steps:
   - name: checkout
-    uses: actions/checkout@v2
+    uses: actions/checkout@v4
   - name: build
     run: this-will-fail
   - name: Datadog
     if: failure()
-    uses: masci/datadog@v1
+    uses: masci/datadog@v2
     with:
       api-key: ${{ secrets.DATADOG_API_KEY }}
       service-checks: |
@@ -91,12 +91,12 @@ might be sending when a job has failed:
 ```yaml
 steps:
   - name: checkout
-    uses: actions/checkout@v2
+    uses: actions/checkout@v4
   - name: build
     run: this-will-fail
   - name: Datadog
     if: failure()
-    uses: masci/datadog@v1
+    uses: masci/datadog@v2
     with:
       api-key: ${{ secrets.DATADOG_API_KEY }}
       logs: |
@@ -111,7 +111,7 @@ steps:
 
 ```yaml
 - name: Datadog
-  uses: masci/datadog@v1
+  uses: masci/datadog@v2
   with:
     # The api key to use.
     # Type: string
