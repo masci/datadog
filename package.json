@@ -28,7 +28,7 @@
     "@actions/core": "^1.11.1",
     "@actions/http-client": "^1.0.8",
     "@types/js-yaml": "^3.12.5",
-    "js-yaml": "^4.2.0"
+    "js-yaml": "^4.3.0"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
