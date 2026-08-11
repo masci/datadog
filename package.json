@@ -30,6 +30,17 @@
     "@types/js-yaml": "^3.12.5",
     "js-yaml": "^4.3.1"
   },
+  "overrides": {
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "^3.15.1"
+    },
+    "@eslint/eslintrc": {
+      "js-yaml": "^3.15.1"
+    },
+    "eslint": {
+      "js-yaml": "^3.15.1"
+    }
+  },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
