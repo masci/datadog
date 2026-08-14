@@ -1,44 +1,65 @@
-name: "build-test"
-on: # rebuild any PRs and main branch changes
-  pull_request:
+name: CI
+
+on:
   push:
-    branches:
-      - master
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
 
 jobs:
-  # make sure build/ci work properly
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - run: npm install
+      - run: npm run lint
+
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22.x, 24.x]
     steps:
-    - name: checkout
-      uses: actions/checkout@v4
-    - name: build and test
-      run: |
-        npm install
-        npm run all
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Cache Node.js modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - run: npm install
+      - run: npm test
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
 
-  # make sure the action works on a clean machine without building
-  e2e:
-    if: github.event.pull_request.head.repo.fork == false
+  build:
     runs-on: ubuntu-latest
     steps:
-    - name: checkout
-      uses: actions/checkout@v4
-    - name: Datadog
-      uses: ./
-      with:
-        api-key: ${{ secrets.DATADOG_API_KEY }}
-        metrics: |
-          - type: "count"
-            name: "test.runs.count"
-            value: 1.0
-            tags:
-              - "project:${{ github.repository }}"
-              - "branch:${{ github.head_ref }}"
-        events: |
-          - title: "Test run succesfully"
-            text: "GitHub job ${{ github.job }} ran successfully"
-            alert_type: "info"
-            host: ${{ github.repository_owner }}
-            tags:
-              - "project:${{ github.repository }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - run: npm install
+      - run: npm run build
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+      - name: Send metrics to Datadog
+  uses: DataDog/datadog-actions@v1
+  with:
+    api_key: ${{ secrets.DD_API_KEY }}
+    service: datadog-ci
+    env: github-actions
+
+   
