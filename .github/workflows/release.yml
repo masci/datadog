@@ -1,22 +1,80 @@
 name: release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - BUGFIX
+          - MINOR
+          - MAJOR
+        default: BUGFIX
 
 permissions:
   contents: read
 
 jobs:
-  github-release:
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: check HEAD has no version tag
+        run: |
+          if git tag --points-at HEAD | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "HEAD is already tagged: $(git tag --points-at HEAD | tr '\n' ' ')"
+            exit 1
+          fi
+
+      - name: compute next version
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          CURRENT=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n 1)
+          CURRENT=${CURRENT#v}
+          IFS=. read -r major minor patch <<< "$CURRENT"
+          case "$BUMP" in
+            BUGFIX)
+              patch=$((patch + 1))
+              ;;
+            MINOR)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            MAJOR)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            *)
+              echo "Unexpected bump type: $BUMP"
+              exit 1
+              ;;
+          esac
+          echo "VERSION=${major}.${minor}.${patch}" >> "$GITHUB_ENV"
+          echo "MAJOR_TAG=v${major}" >> "$GITHUB_ENV"
+          echo "Bumped ${CURRENT} -> ${major}.${minor}.${patch} (${BUMP})"
+
+      - name: create and push tags
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${VERSION}"
+          git tag -f "${MAJOR_TAG}"
+          git push origin "v${VERSION}"
+          git push --force origin "${MAJOR_TAG}"
+
       - name: create GitHub release
         uses: ncipollo/release-action@v1
         with:
+          tag: v${{ env.VERSION }}
           generateReleaseNotes: true

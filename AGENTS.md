@@ -10,11 +10,18 @@ Source lives under `src/`; tests under `__tests__/`.
 
 ## Release process
 
+Releases run from the manual `release` workflow (`.github/workflows/release.yml`). Do not tag or push by hand.
+
 To release a new version of this action:
 
-- Check out the latest version of the `main` branch
-- Ask which version number you need to bump: bugfix, minor or major
-- Make sure the `HEAD` has no tags yet
-- Tag the `HEAD` with the desired semantic version number, prefix the version string with a lowercase letter `v` resulting in the format `vX.Y.Z`
-- There is a special tag `vX` that always points to the latest major version. Move it so it points to `main`
-- **Stop before pushing.** After tags exist locally, ask the user to confirm they want the tags pushed to the remote (show the exact `git push` commands you will run, including `--force` for `vX` if applicable). Do not run `git push` until they explicitly confirm.
+- Make sure `main` has the built `dist/` committed. The workflow does not build.
+- Ask which version number to bump: bugfix, minor or major
+- Ask the user to confirm before you start the run
+- Start it: `gh workflow run release.yml --ref main -f bump=BUGFIX` (or `MINOR`, `MAJOR`)
+
+The workflow does the rest:
+
+- It stops if `HEAD` on `main` already has a version tag
+- It tags `HEAD` as `vX.Y.Z`, based on the latest `vX.Y.Z` tag
+- It moves the `vX` tag to `HEAD`. This tag always points to the latest release of that major version. It is force-pushed.
+- It creates the GitHub release with generated notes
