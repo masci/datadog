@@ -60,21 +60,22 @@ jobs:
               exit 1
               ;;
           esac
-          echo "VERSION=${major}.${minor}.${patch}" >> "$GITHUB_ENV"
-          echo "MAJOR_TAG=v${major}" >> "$GITHUB_ENV"
-          echo "Bumped ${CURRENT} -> ${major}.${minor}.${patch} (${BUMP})"
+          TAG="v${major}.${minor}.${patch}"
+          echo "TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "MAJOR_TAG=${TAG%%.*}" >> "$GITHUB_ENV"
+          echo "Bumped v${CURRENT} -> ${TAG} (${BUMP})"
 
       - name: create and push tags
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "v${VERSION}"
+          git tag "${TAG}"
           git tag -f "${MAJOR_TAG}"
-          git push origin "v${VERSION}"
+          git push origin "${TAG}"
           git push --force origin "${MAJOR_TAG}"
 
       - name: create GitHub release
         uses: ncipollo/release-action@v1
         with:
-          tag: v${{ env.VERSION }}
+          tag: ${{ env.TAG }}
           generateReleaseNotes: true
