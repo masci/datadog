@@ -25,3 +25,14 @@ The workflow does the rest:
 - It tags `HEAD` as `vX.Y.Z`, based on the latest `vX.Y.Z` tag
 - It moves the `vX` tag to `HEAD`. This tag always points to the latest release of that major version. It is force-pushed.
 - It creates the GitHub release with generated notes
+
+### Known problem
+
+The workflow pushes the tags before it creates the GitHub release. If the release step fails, the tags are already on the remote. A re-run then stops at the "HEAD is already tagged" check.
+
+To recover, do one of these by hand:
+
+- Delete the new `vX.Y.Z` tag on the remote, then run the workflow again
+- Create the GitHub release for the existing tag yourself
+
+A better fix would let a re-run finish a missing release for the tag already on `HEAD`.
